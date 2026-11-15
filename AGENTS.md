@@ -10,6 +10,7 @@ Afspraken per project (maten, lagen, paletten) staan bij dat project, niet hier.
 - **Elke opdracht is één stap ongedaan maken.** Zelf terugdraaien kan met `undo` en `redo`.
 - **Bewaar of exporteer niets zonder ja.**
 - Begin altijd met `get_project`: je werkt in het tabblad dat **nu actief** is. Klopt de naam niet, stop en vraag het.
+- **Kies een laag op naam, vlak voor elke opdracht.** De gebruiker tekent mee en kan een laag toevoegen; dan schuiven de laagnummers op. Doe `get_project` opnieuw vóór je tekent als er tijd tussen zit.
 
 ## Hoe het werkt
 ```
