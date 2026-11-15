@@ -350,6 +350,46 @@ func _cmd_select_cel(params: Dictionary) -> Dictionary:
 	return _cmd_get_project({})
 
 
+## Ctrl+Z, [param steps] times. Goes through Project.commit_undo(), like Edit > Undo.
+func _cmd_undo(params: Dictionary) -> Dictionary:
+	return _undo_redo(params, true)
+
+
+## Ctrl+Y, [param steps] times. Goes through Project.commit_redo(), like Edit > Redo.
+func _cmd_redo(params: Dictionary) -> Dictionary:
+	return _undo_redo(params, false)
+
+
+func _undo_redo(params: Dictionary, undo: bool) -> Dictionary:
+	var steps := clampi(int(params.get("steps", 1)), 1, 50)
+	var project = api.project.current_project
+	var history = project.undo_redo
+	var names := []
+	for i in steps:
+		if undo:
+			if not history.has_undo():
+				break
+			names.append(history.get_current_action_name())
+			project.commit_undo()
+		else:
+			if not history.has_redo():
+				break
+			# The step to redo is the one after the current action.
+			names.append(history.get_action_name(history.get_current_action() + 1))
+			project.commit_redo()
+	var result := {
+		"requested": steps,
+		"done": names.size(),
+		"steps": names,
+		"can_undo": history.has_undo(),
+		"can_redo": history.has_redo(),
+	}
+	if names.size() < steps:
+		result.note = "Only %d step(s) available, fewer than the %d requested" % [names.size(), steps]
+	result.project = _cmd_get_project({})
+	return result
+
+
 func _cmd_save_project(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
 	var path := str(params.get("path", project.save_path))

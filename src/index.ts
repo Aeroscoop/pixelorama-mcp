@@ -249,6 +249,24 @@ server.registerTool(
   async ({ path, ...rest }) => json(await pixelorama.request("export_png", { ...rest, path: absolute(path) })),
 );
 
+server.registerTool(
+  "undo",
+  {
+    description: "Undo the last n steps in the active project, like Ctrl+Z. Returns the names of the steps undone.",
+    inputSchema: { steps: z.number().int().min(1).max(50).optional().describe("Number of steps, default 1") },
+  },
+  async (args) => json(await pixelorama.request("undo", args)),
+);
+
+server.registerTool(
+  "redo",
+  {
+    description: "Redo the last n undone steps in the active project, like Ctrl+Y. Returns the names of the steps redone.",
+    inputSchema: { steps: z.number().int().min(1).max(50).optional().describe("Number of steps, default 1") },
+  },
+  async (args) => json(await pixelorama.request("redo", args)),
+);
+
 const shutdown = () => {
   pixelorama.close();
   process.exit(0);
