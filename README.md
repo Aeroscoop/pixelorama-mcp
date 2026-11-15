@@ -13,8 +13,8 @@ Aangepaste versie van [CyberIce2077/pixelorama-mcp](https://github.com/CyberIce2
 Zoals hieronder bij Setup, met deze repo in plaats van het origineel. Daarna in de Claude-app (instellingenbestand, `mcpServers`), Claude Code (`claude mcp add pixelorama -- node <pad>/dist/index.js`) of Codex (`codex mcp add`) als lokale stdio-server. Nooit openzetten naar internet.
 
 ## Nog te doen
-- Betere namen voor stappen in de geschiedenis (nu heet elke teken- of vulopdracht "MCP draw").
-- Eventueel: openen/bewaren/exporteren beperken tot één map.
+- Betere namen voor stappen in de geschiedenis (#1).
+- Openen, bewaren en exporteren beperken tot één map (#2).
 
 ---
 
