@@ -51,6 +51,8 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 		"current_frame": project.current_frame,
 		"current_layer": project.current_layer,
 		"save_path": project.save_path,
+		"color_mode": "indexed" if project.is_indexed() else "rgba",
+		"palette": _current_palette_name(),
 		"open_projects": open_projects,
 	}
 
@@ -176,12 +178,18 @@ func _cmd_read_pixels(params: Dictionary) -> Dictionary:
 				palette[symbol] = html
 			row += symbols[html]
 		rows.append(row)
+	var slots := {}
+	for symbol in palette:
+		var slot := _palette_slot_of(Color.html(palette[symbol]))
+		if slot >= 0:
+			slots[symbol] = slot
 	return {
 		"frame": target.frame,
 		"layer": target.layer,
 		"x": rect.position.x,
 		"y": rect.position.y,
 		"palette": palette,
+		"palette_slots": slots,
 		"rows": rows,
 	}
 
@@ -224,6 +232,101 @@ func _cmd_rename_layer(params: Dictionary) -> Dictionary:
 	var l_idx := layer_vbox.get_child_count() - (layer + 1)
 	if l_idx >= 0 and l_idx < layer_vbox.get_child_count():
 		layer_vbox.get_child(l_idx).label.text = name
+	return _cmd_get_project({})
+
+
+func _cmd_get_palette(_params: Dictionary) -> Dictionary:
+	var palettes_api = api.palette.autoload()
+	var project = api.project.current_project
+	var current = palettes_api.current_palette
+	var colors := []
+	if current != null:
+		var indices: Array = current.colors.keys()
+		indices.sort()
+		for i in indices:
+			var c: Color = current.colors[i].color
+			colors.append({"slot": i, "color": "#" + c.to_html(c.a < 1)})
+	return {
+		"current": _current_palette_name(),
+		"is_project_palette": current != null and current.is_project_palette,
+		"size": 0 if current == null else current.colors_max,
+		"colors": colors,
+		"global_palettes": palettes_api.palettes.keys(),
+		"project_palettes": project.palettes.keys(),
+		"color_mode": "indexed" if project.is_indexed() else "rgba",
+	}
+
+
+func _cmd_select_palette(params: Dictionary) -> Dictionary:
+	var name := str(params.get("name", ""))
+	var palettes_api = api.palette.autoload()
+	var project = api.project.current_project
+	if not palettes_api.palettes.has(name) and not project.palettes.has(name):
+		return _error("No palette named '%s'" % name)
+	palettes_api.select_palette(name)
+	return _cmd_get_palette({})
+
+
+## Makes a new project palette from a list of colors (slot 0 first) and selects it.
+## In indexed mode all images recolor to the new palette, slot by slot.
+func _cmd_create_palette(params: Dictionary) -> Dictionary:
+	var name := str(params.get("name", "")).strip_edges()
+	var raw = params.get("colors", [])
+	if name.is_empty():
+		return _error("name is required")
+	if not raw is Array or raw.is_empty() or raw.size() > 255:
+		return _error("colors must be a list of 1 to 255 colors")
+	var width := int(params.get("width", 8))
+	if width < 1:
+		width = 8
+	var entries := []
+	for i in raw.size():
+		var parsed := _parse_color(str(raw[i]))
+		if parsed.is_empty() or str(raw[i]).begins_with("@"):
+			return _error("Invalid color at slot %d: %s" % [i, raw[i]])
+		entries.append({"color": parsed[0], "index": i})
+	var height := int(ceil(float(raw.size()) / width))
+	var project = api.project.current_project
+	if project.palettes.has(name):
+		return _error("The project already has a palette named '%s'" % name)
+	api.palette.create_palette_from_data(name, {"colors": entries, "width": width, "height": height}, false)
+	return _cmd_get_palette({})
+
+
+func _cmd_set_color_mode(params: Dictionary) -> Dictionary:
+	var mode := str(params.get("mode", "")).to_lower()
+	if mode != "indexed" and mode != "rgba":
+		return _error("mode must be 'indexed' or 'rgba'")
+	var project = api.project.current_project
+	if (mode == "indexed") == project.is_indexed():
+		return _cmd_get_project({})
+	# Same path as the menu Image > Color mode (one undo step). 0 = RGBA, 1 = Indexed.
+	api.general.get_global().top_menu_container._color_mode_submenu_id_pressed(1 if mode == "indexed" else 0)
+	return _cmd_get_project({})
+
+
+## Changes the canvas size without scaling. anchor says where the old image stays:
+## "bottom" (default) keeps the bottom edge and centers horizontally.
+func _cmd_resize_canvas(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	var width := int(params.get("width", project.size.x))
+	var height := int(params.get("height", project.size.y))
+	if width < 1 or height < 1 or width > 4096 or height > 4096:
+		return _error("Size must be between 1 and 4096 pixels")
+	var anchor := str(params.get("anchor", "bottom")).to_lower()
+	var dx := width - int(project.size.x)
+	var dy := height - int(project.size.y)
+	var ox := dx / 2
+	var oy := dy / 2
+	if "left" in anchor:
+		ox = 0
+	elif "right" in anchor:
+		ox = dx
+	if "top" in anchor:
+		oy = 0
+	elif "bottom" in anchor:
+		oy = dy
+	api.general.get_drawing_algos().resize_canvas(width, height, ox, oy)
 	return _cmd_get_project({})
 
 
@@ -374,6 +477,10 @@ func _rect_param(params: Dictionary, size: Vector2i) -> Rect2i:
 ## Accepts #rgb, #rrggbb, #rrggbbaa, color names and "transparent".
 func _parse_color(text: String) -> Array:
 	text = text.strip_edges()
+	# "@n" means slot n (from 0) of the palette that is selected in Pixelorama.
+	if text.begins_with("@") and text.substr(1).is_valid_int():
+		var slot_color = _palette_slot_color(int(text.substr(1)))
+		return [] if slot_color == null else [slot_color]
 	if text.to_lower() == "transparent":
 		return [Color(0, 0, 0, 0)]
 	if Color.html_is_valid(text):
@@ -382,6 +489,30 @@ func _parse_color(text: String) -> Array:
 	if named.a < 0:
 		return []
 	return [named]
+
+
+func _current_palette_name() -> String:
+	var current = api.palette.autoload().current_palette
+	return "" if current == null else current.name
+
+
+## Returns the color in slot [param slot] of the selected palette, or null.
+func _palette_slot_color(slot: int):
+	var current = api.palette.autoload().current_palette
+	if current == null or not current.colors.has(slot):
+		return null
+	return current.colors[slot].color
+
+
+## Returns the slot of [param color] in the selected palette, or -1.
+func _palette_slot_of(color: Color) -> int:
+	var current = api.palette.autoload().current_palette
+	if current == null:
+		return -1
+	for i in current.colors:
+		if current.colors[i].color.is_equal_approx(color):
+			return i
+	return -1
 
 
 func _error(message: String) -> Dictionary:

@@ -14,7 +14,7 @@ const absolute = (path: string) => (isAbsolute(path) ? path : resolve(path));
 
 const frame = z.number().int().min(0).optional().describe("Frame index, from 0. Defaults to the current frame");
 const layer = z.number().int().min(0).optional().describe("Layer index, 0 is the bottom layer. Defaults to the current layer");
-const color = z.string().describe('Color as #rgb, #rrggbb, #rrggbbaa, a name like "red", or "transparent"');
+const color = z.string().describe('Color as #rgb, #rrggbb, #rrggbbaa, a name like "red", "transparent", or "@n" for slot n (from 0) of the selected palette');
 
 server.registerTool(
   "get_project",
@@ -147,6 +147,61 @@ server.registerTool(
     },
   },
   async (args) => json(await pixelorama.request("rename_layer", args)),
+);
+
+server.registerTool(
+  "get_palette",
+  {
+    description:
+      "Show the palette selected in Pixelorama (slot number and color of every swatch, slot 0 first), the names of all palettes, and the color mode. In draw_pixels and fill_rect a color '@n' means slot n of this palette.",
+  },
+  async () => json(await pixelorama.request("get_palette")),
+);
+
+server.registerTool(
+  "select_palette",
+  {
+    description: "Select a palette by name (global or project palette). In indexed mode the whole image recolors to it, slot by slot.",
+    inputSchema: { name: z.string().min(1) },
+  },
+  async (args) => json(await pixelorama.request("select_palette", args)),
+);
+
+server.registerTool(
+  "create_palette",
+  {
+    description:
+      "Create a project palette from a list of colors (slot 0 first) and select it. Use the same slot order for a day and a night palette.",
+    inputSchema: {
+      name: z.string().min(1),
+      colors: z.array(z.string()).min(1).max(255).describe("Colors as #rrggbb, slot 0 first"),
+      width: z.number().int().min(1).optional().describe("Swatches per row in the palette panel, default 8"),
+    },
+  },
+  async (args) => json(await pixelorama.request("create_palette", args)),
+);
+
+server.registerTool(
+  "set_color_mode",
+  {
+    description: "Switch the project between 'indexed' (every pixel is a palette slot) and 'rgba'. One undo step.",
+    inputSchema: { mode: z.enum(["indexed", "rgba"]) },
+  },
+  async (args) => json(await pixelorama.request("set_color_mode", args)),
+);
+
+server.registerTool(
+  "resize_canvas",
+  {
+    description:
+      "Change the canvas size without scaling. anchor is where the old image stays: bottom (default, centered horizontally), top, center, left, right, or combinations like bottom-left.",
+    inputSchema: {
+      width: z.number().int().min(1).max(4096),
+      height: z.number().int().min(1).max(4096),
+      anchor: z.string().optional(),
+    },
+  },
+  async (args) => json(await pixelorama.request("resize_canvas", args)),
 );
 
 server.registerTool(
