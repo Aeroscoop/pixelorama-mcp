@@ -210,6 +210,23 @@ func _cmd_add_layer(params: Dictionary) -> Dictionary:
 	return _cmd_get_project({})
 
 
+func _cmd_rename_layer(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	var layer := int(params.get("layer", project.current_layer))
+	var name := str(params.get("name", "")).strip_edges()
+	if layer < 0 or layer >= project.layers.size():
+		return _error("Layer %d does not exist" % layer)
+	if name.is_empty():
+		return _error("name is required")
+	project.layers[layer].name = name
+	# Same way ExtensionsApi.add_new_layer updates the timeline label.
+	var layer_vbox: VBoxContainer = api.general.get_global().animation_timeline.layer_vbox
+	var l_idx := layer_vbox.get_child_count() - (layer + 1)
+	if l_idx >= 0 and l_idx < layer_vbox.get_child_count():
+		layer_vbox.get_child(l_idx).label.text = name
+	return _cmd_get_project({})
+
+
 func _cmd_add_frame(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
 	var after := int(params.get("after", project.frames.size() - 1))
@@ -291,13 +308,53 @@ func _target_cel(params: Dictionary, for_writing := true) -> Dictionary:
 	if for_writing and project.layers[layer].locked:
 		return _error("Layer %d is locked" % layer)
 
-	var image := Image.new()
-	image.copy_from(cel.get_image())
+	# Since Pixelorama 1.2 (API 10) a cel image only covers the used area and
+	# starts at cel.offset (a new layer is 1 x 1). Build a canvas-sized copy so
+	# all commands can work in canvas coordinates.
+	var size: Vector2i = project.size
+	var image := Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
+	var cel_image := Image.new()
+	cel_image.copy_from(cel.get_image())
+	cel_image.convert(Image.FORMAT_RGBA8)
+	var cel_offset: Vector2i = cel.offset if "offset" in cel else Vector2i.ZERO
+	image.blit_rect(cel_image, Rect2i(Vector2i.ZERO, cel_image.get_size()), cel_offset)
 	return {"frame": frame, "layer": layer, "image": image}
 
 
+## Writes a canvas-sized image back into the cel as one undo step.
+## The cel is shrunk to the used area and its offset set, like Pixelorama's own tools.
 func _commit(target: Dictionary, image: Image) -> void:
-	api.project.set_pixelcel_image(image, target.frame, target.layer)
+	var project = api.project.current_project
+	var cel = project.frames[target.frame].cels[target.layer]
+	# serialize_cel_undo_data wants a typed Array[BaseCel]; copy the type from frame.cels.
+	var cels: Array = project.frames[target.frame].cels.duplicate()
+	cels.clear()
+	cels.append(cel)
+	var undo_data := {}
+	project.serialize_cel_undo_data(cels, undo_data)
+
+	var used := image.get_used_rect()
+	var new_offset := Vector2i.ZERO
+	var part: Image
+	if used.size == Vector2i.ZERO:
+		part = Image.create_empty(1, 1, false, Image.FORMAT_RGBA8)
+	else:
+		part = image.get_region(used)
+		new_offset = used.position
+	part.convert(project.get_image_format())
+	cel.get_image().copy_from_custom(part)
+	cel.change_offset(new_offset)
+
+	var redo_data := {}
+	project.serialize_cel_undo_data(cels, redo_data)
+	project.undo_redo.create_action("MCP draw")
+	project.deserialize_cel_undo_data(redo_data, undo_data)
+	project.undo_redo.add_do_method(cel.update_texture)
+	project.undo_redo.add_undo_method(cel.update_texture)
+	var global = api.general.get_global()
+	project.undo_redo.add_do_method(global.undo_or_redo.bind(false, target.frame, target.layer))
+	project.undo_redo.add_undo_method(global.undo_or_redo.bind(true, target.frame, target.layer))
+	project.undo_redo.commit_action()
 
 
 func _blend_frame(project, frame: int) -> Image:

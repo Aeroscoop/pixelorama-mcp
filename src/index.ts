@@ -138,6 +138,18 @@ server.registerTool(
 );
 
 server.registerTool(
+  "rename_layer",
+  {
+    description: "Rename a layer. Layer 0 is the bottom layer.",
+    inputSchema: {
+      layer: z.number().int().min(0).describe("Layer index, 0 is the bottom layer"),
+      name: z.string().min(1),
+    },
+  },
+  async (args) => json(await pixelorama.request("rename_layer", args)),
+);
+
+server.registerTool(
   "add_frame",
   {
     description: "Add an empty frame. By default it goes after the last frame.",
