@@ -15,7 +15,6 @@ Zoals hieronder bij Setup, met deze repo in plaats van het origineel. Daarna in 
 ## Nog te doen
 - Betere namen voor stappen in de geschiedenis (nu heet elke teken- of vulopdracht "MCP draw").
 - Eventueel: openen/bewaren/exporteren beperken tot één map.
-- De reparatie voor Pixelorama 1.2 aanbieden aan het origineel (pull request).
 
 ---
 
