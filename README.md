@@ -30,7 +30,7 @@ Getest op Windows; deze stappen volgen het installatiescript (`scripts/install-e
 5. **Aan de agent koppelen** (lokale stdio-server, nooit naar internet):
    - Claude Code: `claude mcp add pixelorama -- node ~/projects/pixelorama-mcp/dist/index.js`
    - Codex: `codex mcp add pixelorama -- node ~/projects/pixelorama-mcp/dist/index.js`
-   - Claude-app (als die op de laptop draait): in het instellingenbestand onder `mcpServers` een blok `"pixelorama": {"command": "node", "args": ["/home/<naam>/projects/pixelorama-mcp/dist/index.js"]}`. Gebruik het volledige pad, geen `~`.
+   - Claude-app: in `~/.config/Claude/claude_desktop_config.json` onder `mcpServers` een blok `"pixelorama": {"command": "node", "args": ["/home/<naam>/projects/pixelorama-mcp/dist/index.js"]}`. Gebruik het volledige pad, geen `~`. Daarna de Claude-app opnieuw starten.
 6. **Controleren:** Pixelorama open met een project, dan de agent `get_project` laten doen. Antwoordt die met maat en lagen, dan werkt het. Geen verbinding: kijk of de uitbreiding aanstaat en of poort 7651 vrij is (`ss -ltn | grep 7651`).
 
 **Paletten meenemen.** Projectpaletten zitten in het `.pxo`-bestand en gaan vanzelf mee. Algemene paletten (zoals `Winter 25`, `Winterhol dag`, `Winterhol nacht`) zijn losse `.json`-bestanden: kopieer ze van `%APPDATA%\Pixelorama\Palettes` (Windows) naar `~/.local/share/pixelorama/Palettes` (Linux) en start Pixelorama opnieuw.
