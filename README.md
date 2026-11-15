@@ -1,3 +1,26 @@
+# pixelorama-mcp (versie Aeroscoop)
+
+Aangepaste versie van [CyberIce2077/pixelorama-mcp](https://github.com/CyberIce2077/pixelorama-mcp) (MIT, zie LICENSE). Gemaakt voor Nestar, maar werkt met elk project in Pixelorama.
+**Agents: lees eerst [AGENTS.md](AGENTS.md).**
+
+## Wat er anders is dan het origineel
+- **Werkt met Pixelorama 1.2 (uitbreidings-API 10).** Sinds 1.2 groeit een laag mee met de inhoud (een nieuwe laag is 1 × 1 pixel, met een verschuiving). Het origineel schreef daarbuiten en tekende niets. Nu werkt elke opdracht op een kopie ter grootte van het werkvlak en laat de laag groeien en krimpen zoals Pixelorama zelf.
+- **Nieuwe tools:** `rename_layer`, `get_palette`, `select_palette`, `create_palette`, `set_color_mode`, `resize_canvas`, `undo`, `redo`.
+- **Kleuren als paletvakje:** `@n` = vakje n (vanaf 0) van het gekozen palet; `read_pixels` meldt `palette_slots`; `get_project` meldt kleurmodus en palet.
+- Getest met Pixelorama v1.2.4 op Windows (aeropc), 15-11-2026.
+
+## Installeren
+Zoals hieronder bij Setup, met deze repo in plaats van het origineel. Daarna in de Claude-app (instellingenbestand, `mcpServers`), Claude Code (`claude mcp add pixelorama -- node <pad>/dist/index.js`) of Codex (`codex mcp add`) als lokale stdio-server. Nooit openzetten naar internet.
+
+## Nog te doen
+- Betere namen voor stappen in de geschiedenis (nu heet elke teken- of vulopdracht "MCP draw").
+- Eventueel: openen/bewaren/exporteren beperken tot één map.
+- De reparatie voor Pixelorama 1.2 aanbieden aan het origineel (pull request).
+
+---
+
+## Originele README
+
 # pixelorama-mcp
 
 Lets AI agents like Claude Code draw pixel art in [Pixelorama](https://github.com/Orama-Interactive/Pixelorama) through [MCP](https://modelcontextprotocol.io).
