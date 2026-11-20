@@ -25,6 +25,32 @@ server.registerTool(
 );
 
 server.registerTool(
+  "list_layers",
+  {
+    description:
+      "List all layers in the active project from bottom to top, including group membership, eye state, " +
+      "and whether the layer is visible through its parent groups.",
+  },
+  async () => json(await pixelorama.request("list_layers")),
+);
+
+server.registerTool(
+  "set_layer_visibility",
+  {
+    description:
+      "Set the eye state of a layer in the active project by its exact name. " +
+      "Use list_layers and pass index to disambiguate duplicate names. " +
+      "A change affects all frames and can be undone.",
+    inputSchema: {
+      name: z.string().min(1).describe("Exact layer name"),
+      visible: z.boolean().describe("True shows the layer; false hides it"),
+      index: z.number().int().min(0).optional().describe("Layer index if more than one layer has this name"),
+    },
+  },
+  async (args) => json(await pixelorama.request("set_layer_visibility", args)),
+);
+
+server.registerTool(
   "new_project",
   {
     description: "Create a new, empty project in a new tab and switch to it.",

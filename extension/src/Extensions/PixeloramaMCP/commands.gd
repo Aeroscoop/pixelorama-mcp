@@ -28,16 +28,6 @@ func run(method: String, params: Dictionary) -> Dictionary:
 func _cmd_get_project(_params: Dictionary) -> Dictionary:
 	var global = api.general.get_global()
 	var project = global.current_project
-	var layers := []
-	for i in project.layers.size():
-		var layer = project.layers[i]
-		layers.append({
-			"index": i,
-			"name": layer.name,
-			"type": LAYER_TYPES[layer.get_layer_type()],
-			"visible": layer.visible,
-			"locked": layer.locked,
-		})
 	var open_projects := []
 	for p in global.projects:
 		open_projects.append(p.name)
@@ -47,7 +37,7 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 		"height": project.size.y,
 		"frames": project.frames.size(),
 		"fps": project.fps,
-		"layers": layers,
+		"layers": _layer_entries(project),
 		"current_frame": project.current_frame,
 		"current_layer": project.current_layer,
 		"save_path": project.save_path,
@@ -55,6 +45,85 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 		"palette": _current_palette_name(),
 		"open_projects": open_projects,
 	}
+
+
+func _layer_entry(project, index: int) -> Dictionary:
+	var layer = project.layers[index]
+	return {
+		"index": index,
+		"name": layer.name,
+		"type": LAYER_TYPES[layer.get_layer_type()],
+		"visible": layer.visible,
+		"visible_in_hierarchy": layer.is_visible_in_hierarchy(),
+		"parent_index": layer.parent.index if is_instance_valid(layer.parent) else null,
+		"locked": layer.locked,
+	}
+
+
+func _layer_entries(project) -> Array:
+	var entries := []
+	for index in project.layers.size():
+		entries.append(_layer_entry(project, index))
+	return entries
+
+
+func _cmd_list_layers(_params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	return {
+		"project": project.name,
+		"current_layer": project.current_layer,
+		"layers": _layer_entries(project),
+	}
+
+
+func _cmd_set_layer_visibility(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	var name = params.get("name")
+	var visible = params.get("visible")
+	if typeof(name) != TYPE_STRING or name.is_empty():
+		return _error("A layer name is required")
+	if typeof(visible) != TYPE_BOOL:
+		return _error("visible must be a boolean")
+
+	var index := -1
+	if params.has("index"):
+		var requested = params.index
+		if typeof(requested) not in [TYPE_INT, TYPE_FLOAT] or requested != floor(requested):
+			return _error("index must be an integer")
+		index = int(requested)
+		if index < 0 or index >= project.layers.size() or project.layers[index].name != name:
+			return _error("No layer named '%s' at index %d; list the layers again" % [name, index])
+	else:
+		for candidate in project.layers.size():
+			if project.layers[candidate].name != name:
+				continue
+			if index != -1:
+				return _error("Multiple layers are named '%s'; use list_layers and pass index" % name)
+			index = candidate
+		if index == -1:
+			return _error("Layer '%s' does not exist" % name)
+
+	var selected_layer = project.layers[index]
+	var changed: bool = selected_layer.visible != visible
+	if changed:
+		var global = api.general.get_global()
+		var history = project.undo_redo
+		history.create_action("MCP layer visibility")
+		history.add_do_property(selected_layer, "visible", visible)
+		history.add_undo_property(selected_layer, "visible", selected_layer.visible)
+		history.add_do_method(_refresh_layer_visibility.bind(global))
+		history.add_undo_method(_refresh_layer_visibility.bind(global))
+		history.add_do_method(global.undo_or_redo.bind(false))
+		history.add_undo_method(global.undo_or_redo.bind(true))
+		history.commit_action()
+	return {"project": project.name, "changed": changed, "layer": _layer_entry(project, index)}
+
+
+func _refresh_layer_visibility(global) -> void:
+	global.canvas.update_all_layers = true
+	global.canvas.queue_redraw()
+	global.animation_timeline.update_layer_expanded_status()
+	global.animation_timeline.update_global_layer_buttons()
 
 
 func _cmd_new_project(params: Dictionary) -> Dictionary:
