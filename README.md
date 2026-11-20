@@ -54,9 +54,14 @@ PIXELORAMA_BIN=/pad/naar/Pixelorama.x86_64 npm run test:pixelorama
 
 De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels. Hij controleert via MCP de verbinding en een tekeninstelling, installeert een tweede build terwijl de tekening open is, en controleert versieverschil, herhaling, behoud van de tekening en uitschakelen.
 
+### Bestandspaden beperken
+
+Maak desgewenst `pixelorama-mcp.json` in het Pixelorama-profiel en herstart de editor. Vul een bestaande map in, bijvoorbeeld `{"root": "/home/melroy/Pixelorama"}` op Linux of `{"root": "C:/Users/melro/Pixelorama"}` op Windows. De uitbreiding controleert `open_file`, `save_project` en `export_png`. Symbolische links en Windows-junctions worden geweigerd. Gebruik op Windows een lokaal stationspad.
+
+`get_project.path_check` meldt de toegestane map, `off` als het bestand ontbreekt, of `invalid` bij een ongeldige instelling. Bij `invalid` zijn de bestandsopdrachten geblokkeerd totdat je de instelling corrigeert en Pixelorama herstart.
+
 ## Nog te doen
 - Betere namen voor stappen in de geschiedenis (#1).
-- Openen, bewaren en exporteren beperken tot één map (#2).
 
 ---
 

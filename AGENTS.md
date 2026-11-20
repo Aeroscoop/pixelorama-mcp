@@ -79,7 +79,7 @@ Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad w
 - **Nieuwe tools zie je niet:** start de Claude-app, Claude Code of Codex opnieuw na een update van de koppeling.
 - **`set_color_mode`** gebruikt een interne functie van Pixelorama en kan breken bij een nieuwe Pixelorama-versie.
 - **Schermafdrukken (computer use) van Pixelorama werken niet**: gebruik `get_image`.
-- **Veiligheid:** de koppeling luistert alleen op 127.0.0.1, maar elk programma op deze pc kan verbinden, en openen/bewaren mag elk pad. Zet de poort nooit open naar internet (geen tunnel).
+- **Veiligheid:** de koppeling luistert alleen op 127.0.0.1, maar elk programma op deze pc kan verbinden. `get_project.path_check` toont de map die de uitbreiding voor openen, bewaren en exporteren toestaat. Bij `off` zijn alle paden toegestaan, bij `invalid` geen. Zet de poort nooit open naar internet (geen tunnel).
 
 ## Opstarten en problemen
 1. Pixelorama open, uitbreiding aan.
