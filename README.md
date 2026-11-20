@@ -6,6 +6,7 @@ Aangepaste versie van [CyberIce2077/pixelorama-mcp](https://github.com/CyberIce2
 ## Wat er anders is dan het origineel
 - **Werkt met Pixelorama 1.2 (uitbreidings-API 10).** Sinds 1.2 groeit een laag mee met de inhoud (een nieuwe laag is 1 × 1 pixel, met een verschuiving). Het origineel schreef daarbuiten en tekende niets. Nu werkt elke opdracht op een kopie ter grootte van het werkvlak en laat de laag groeien en krimpen zoals Pixelorama zelf.
 - **Nieuwe tools:** `rename_layer`, `get_palette`, `select_palette`, `create_palette`, `set_color_mode`, `resize_canvas`, `undo`, `redo`.
+- **Geschiedenis:** elke teken- en vulstap toont de opdracht en de laagnaam, bijvoorbeeld `MCP draw_pixels: hulp`.
 - **Kleuren als paletvakje:** `@n` = vakje n (vanaf 0) van het gekozen palet; `read_pixels` meldt `palette_slots`; `get_project` meldt kleurmodus en palet.
 - Getest met Pixelorama v1.2.4 op Windows (aeropc), 15-11-2026.
 
@@ -55,7 +56,6 @@ PIXELORAMA_BIN=/pad/naar/Pixelorama.x86_64 npm run test:pixelorama
 De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels. Hij controleert via MCP de verbinding en een tekeninstelling, installeert een tweede build terwijl de tekening open is, en controleert versieverschil, herhaling, behoud van de tekening en uitschakelen.
 
 ## Nog te doen
-- Betere namen voor stappen in de geschiedenis (#1).
 - Openen, bewaren en exporteren beperken tot één map (#2).
 
 ---
