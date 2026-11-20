@@ -47,6 +47,23 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 	}
 
 
+func _cmd_get_drawing_settings(_params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	return {"show_grid": global.draw_grid, "show_pixel_grid": global.draw_pixel_grid}
+
+
+func _cmd_set_drawing_settings(params: Dictionary) -> Dictionary:
+	for key in params:
+		if key not in ["show_grid", "show_pixel_grid"] or not params[key] is bool:
+			return _error("Expected boolean show_grid or show_pixel_grid")
+	var global = api.general.get_global()
+	if params.has("show_grid") and global.draw_grid != params.show_grid:
+		global.top_menu_container._toggle_show_grid()
+	if params.has("show_pixel_grid") and global.draw_pixel_grid != params.show_pixel_grid:
+		global.top_menu_container._toggle_show_pixel_grid()
+	return _cmd_get_drawing_settings({})
+
+
 func _layer_entry(project, index: int) -> Dictionary:
 	var layer = project.layers[index]
 	return {

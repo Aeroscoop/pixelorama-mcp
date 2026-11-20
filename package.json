@@ -18,6 +18,8 @@
     "build": "tsc && node scripts/pack-extension.mjs",
     "prepare": "npm run build",
     "install-extension": "node scripts/install-extension.mjs",
+    "extension": "node scripts/install-extension.mjs",
+    "test:pixelorama": "node scripts/test-pixelorama.mjs",
     "start": "node dist/index.js"
   },
   "engines": {
