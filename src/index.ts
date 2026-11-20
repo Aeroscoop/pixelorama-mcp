@@ -25,6 +25,24 @@ server.registerTool(
 );
 
 server.registerTool(
+  "get_drawing_settings",
+  { description: "Read the editor's canvas grid and pixel grid visibility." },
+  async () => json(await pixelorama.request("get_drawing_settings")),
+);
+
+server.registerTool(
+  "set_drawing_settings",
+  {
+    description: "Change the editor overlays for drawing. These settings affect the view only.",
+    inputSchema: {
+      show_grid: z.boolean().optional().describe("Show the configured canvas grid"),
+      show_pixel_grid: z.boolean().optional().describe("Show individual pixel boundaries at high zoom"),
+    },
+  },
+  async (args) => json(await pixelorama.request("set_drawing_settings", args)),
+);
+
+server.registerTool(
   "list_layers",
   {
     description:

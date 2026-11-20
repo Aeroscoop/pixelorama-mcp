@@ -17,7 +17,7 @@ Afspraken per project (maten, lagen, paletten) staan bij dat project, niet hier.
 agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding in Pixelorama
 ```
 - Deze repo: Aeroscoop/pixelorama-mcp, een aangepaste versie van CyberIce2077/pixelorama-mcp (MIT). Wat er anders is: zie README.md.
-- Getest met Pixelorama v1.2.4 (uitbreidings-API 10). Uitbreiding **Pixelorama MCP** moet aan staan in Voorkeuren › Uitbreidingen.
+- Getest met Pixelorama v1.2.4 (uitbreidings-API 10). Zet **Pixelorama MCP** aan met `npm run extension -- enable` vóór het starten van Pixelorama. Gebruik `npm run extension -- status` om de build op schijf en die in de editor te vergelijken.
 - Meerdere agents mogen tegelijk verbonden zijn.
 
 ## Afspraken over tellen
@@ -29,6 +29,7 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | Tool | Wat | Let op |
 |---|---|---|
 | `get_project` | grootte, lagen, frames, actieve laag, kleurmodus, palet, open tabbladen | altijd eerst |
+| `get_drawing_settings`, `set_drawing_settings` | canvasraster en pixelgrenzen in de editor | alleen weergave |
 | `list_layers` | alle lagen van onder naar boven, met index, groepslaag, oogje, zichtbaarheid via bovenliggende groepen en slot | lees opnieuw als lagen verplaatst zijn |
 | `set_layer_visibility` | oogje van een laag op naam aan of uit zetten, voor alle frames | geef bij gelijke namen ook `index` mee. Een wijziging is één undo-stap |
 | `get_image` | het frame als afbeelding (alle zichtbare lagen) | om te kijken; `scale` 2 à 3 is genoeg |
