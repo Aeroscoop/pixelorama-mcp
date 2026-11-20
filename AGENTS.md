@@ -36,6 +36,8 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `read_pixels` | pixels van één laag als letterraster + kleuren; `palette_slots` zegt welke letter welk paletvakje is | max. 16.384 pixels en ± 80 kleuren per keer: lees in stukken |
 | `draw_pixels` | teken een letterraster (`rows` + `palette`) op `x`, `y` | tekens die niet in `palette` staan (zoals `.`) laten de pixel staan; zet een teken op `transparent` om te gummen |
 | `fill_rect` | rechthoek vullen; zonder positie/maat de hele laag | `transparent` = laag leegmaken |
+| `copy_selection`, `move_selection` | kopieer of verplaats een rechthoek binnen één cel | de bestemming krijgt ook transparante pixels |
+| `shift_layer` | verschuif een hele pixellaag in één frame met `dx` en `dy` | buiten het canvas wordt afgesneden |
 | `clear_cel` | een laag in een frame leegmaken | |
 | `add_layer` | laag toevoegen, met naam | komt bovenop, of boven `above` |
 | `rename_layer` | laag hernoemen | |
@@ -53,7 +55,7 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `set_color_mode` | `indexed` of `rgba` | zie "Indexed en paletten"; vraag eerst |
 | `resize_canvas` | werkvlak vergroten/verkleinen zonder schalen, met `anchor` | standaard `bottom` (onderaan, midden) |
 
-Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad wisselen, paletten verwijderen. Teken met `draw_pixels` en `fill_rect`; de rest doet de gebruiker met de hand.
+Wat er niet is: vrije selecties, penselen, lijnen, van tabblad wisselen, paletten verwijderen. Teken met `draw_pixels` en `fill_rect`; de rest doet de gebruiker met de hand.
 
 ## Indexed en paletten
 - In **Indexed** is elke pixel een paletvakje. Wissel je van palet (`select_palette`), dan kleurt alles mee, vakje voor vakje. Zo maak je bijvoorbeeld dag en nacht: twee paletten met dezelfde volgorde.
