@@ -64,7 +64,7 @@ Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad w
   3. kies daarna een palet met dezelfde eerste vakjes plus de hulpkleuren erachter;
   4. teken de hulplagen opnieuw met `@n`.
 - Terug naar RGBA geeft elke pixel de kleur van zijn vakje in het gekozen palet. Daarmee kun je vakjes "omleggen": kies eerst een tijdelijk palet waarin de verkeerde vakjes de goede kleur hebben, zet om naar RGBA en daarna weer naar Indexed.
-- Paletkeuze telt in Pixelorama als een stap. Gebruik `undo` en lees de namen van de stappen terug, zodat je weet wat je terugdraait. Let op: alle teken- en vulopdrachten heten nu "MCP draw" (betere namen staan op de lijst).
+- Paletkeuze telt in Pixelorama als een stap. Gebruik `undo` en lees de namen van de stappen terug, zodat je weet wat je terugdraait. Teken- en vulopdrachten heten `MCP <opdracht>: <laagnaam>`, bijvoorbeeld `MCP draw_pixels: hulp`. `clear_cel` gebruikt de naam `fill_rect`.
 - `undo` en `redo` werken op het actieve tabblad, zoals alle tools.
 
 ## Regels voor jou
