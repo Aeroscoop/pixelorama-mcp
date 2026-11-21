@@ -159,6 +159,31 @@ server.registerTool(
 );
 
 server.registerTool(
+  "draw_pixels_in_frames",
+  {
+    description: "Draw one pixel pattern across selected frames in one undo step. Supply each frame's own palette.",
+    inputSchema: {
+      rows: z.array(z.string()).min(1),
+      x: z.number().int().default(0), y: z.number().int().default(0), layer,
+      frames: z.array(z.object({
+        frame: z.number().int().min(0),
+        palette: z.record(z.string().length(1), z.string()),
+      })).min(1),
+    },
+  },
+  async (args) => json(await pixelorama.request("draw_pixels_in_frames", args)),
+);
+
+server.registerTool(
+  "shift_layer_in_frames",
+  {
+    description: "Shift the layer by the same amount in selected frames. All changes share one undo step.",
+    inputSchema: { frames: z.array(z.number().int().min(0)).min(1), dx: shiftCoordinate, dy: shiftCoordinate, layer },
+  },
+  async (args) => json(await pixelorama.request("shift_layer_in_frames", args)),
+);
+
+server.registerTool(
   "read_pixels",
   {
     description:

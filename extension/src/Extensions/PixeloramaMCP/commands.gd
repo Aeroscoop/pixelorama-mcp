@@ -182,6 +182,13 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 	if target.has("error"):
 		return target
 
+	var result := _prepare_draw(target, params)
+	if not result.has("error"):
+		_commit(target, target.image, "draw_pixels")
+	return result
+
+
+func _prepare_draw(target: Dictionary, params: Dictionary) -> Dictionary:
 	var palette := {}
 	var raw_palette = params.get("palette", {})
 	if not raw_palette is Dictionary or raw_palette.is_empty():
@@ -197,7 +204,9 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 	var image: Image = target.image
 	var bounds := Rect2i(Vector2i.ZERO, image.get_size())
 	var origin := Vector2i(int(params.get("x", 0)), int(params.get("y", 0)))
-	var rows: Array = params.get("rows", [])
+	var rows = params.get("rows", [])
+	if not rows is Array:
+		return _error("rows must be an array")
 	var changed := 0
 	var unknown := {}
 	for y in rows.size():
@@ -213,7 +222,6 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 				image.set_pixelv(pos, palette[symbol])
 				changed += 1
 
-	_commit(target, image, "draw_pixels")
 	var result := {"frame": target.frame, "layer": target.layer, "pixels_changed": changed}
 	if not unknown.is_empty():
 		result.ignored_characters = "".join(PackedStringArray(unknown.keys()))
@@ -311,6 +319,63 @@ func _shift_pixels(image: Image, source: Rect2i, destination: Vector2i, move: bo
 	if move:
 		image.fill_rect(source, empty)
 	image.blit_rect(copied, Rect2i(Vector2i.ZERO, source.size), destination)
+
+
+func _cmd_draw_pixels_in_frames(params: Dictionary) -> Dictionary:
+	return _edit_frames(params, "draw_pixels_in_frames", true)
+
+
+func _cmd_shift_layer_in_frames(params: Dictionary) -> Dictionary:
+	return _edit_frames(params, "shift_layer_in_frames", false)
+
+
+func _edit_frames(params: Dictionary, command: String, draw: bool) -> Dictionary:
+	var project = api.project.current_project
+	var frames = params.get("frames")
+	if not frames is Array or frames.is_empty():
+		return _error("Supply at least one frame")
+	if frames.size() * project.size.x * project.size.y > 32 * 1024 * 1024:
+		return _error("Too many canvas pixels for one frame batch (maximum 32 Mi pixels)")
+	var layer = params.get("layer", project.current_layer)
+	if not _valid_shift_number(layer) or layer < 0 or layer >= project.layers.size():
+		return _error("Invalid layer")
+	if project.layers[int(layer)].is_locked_in_hierarchy():
+		return _error("Layer %d is locked" % int(layer))
+	var seen := {}
+	var edits := []
+	var results := []
+	for entry in frames:
+		if draw and not entry is Dictionary:
+			return _error("Each drawing entry must contain a frame and palette")
+		var frame = entry.get("frame") if draw else entry
+		if not (frame is int or frame is float) or frame < 0 or frame >= project.frames.size() or int(frame) != frame:
+			return _error("Invalid frame: %s" % str(frame))
+		frame = int(frame)
+		if seen.has(frame):
+			return _error("Frame %d occurs more than once" % frame)
+		seen[frame] = true
+		var target := _target_cel({"frame": frame, "layer": layer})
+		if target.has("error"):
+			return target
+		var cel = project.frames[frame].cels[int(layer)]
+		if cel.link_set != null and cel.link_set.size() > 1:
+			return _error("Frame %d has a linked cel. Unlink it before editing selected frames." % frame)
+		var result: Dictionary
+		if draw:
+			var drawing := params.duplicate()
+			drawing.palette = entry.get("palette")
+			result = _prepare_draw(target, drawing)
+		else:
+			result = _prepare_shift(target, params, true, true)
+		if result.has("error"):
+			return _error("Frame %d: %s" % [frame, result.error])
+		result.frame = frame
+		results.append(result)
+		if result.get("changed", result.get("pixels_changed", 0) > 0):
+			edits.append(target)
+	if not edits.is_empty():
+		_commit_edits(edits, command)
+	return {"layer": int(layer), "frames": results}
 
 
 func _cmd_read_pixels(params: Dictionary) -> Dictionary:
@@ -627,18 +692,42 @@ func _target_cel(params: Dictionary, for_writing := true) -> Dictionary:
 	return {"frame": frame, "layer": layer, "image": image}
 
 
-## Writes a canvas-sized image back into the cel as one undo step.
-## The cel is shrunk to the used area and its offset set, like Pixelorama's own tools.
+## A single action can update one or more canvas-sized cel images.
 func _commit(target: Dictionary, image: Image, command: String) -> void:
+	target.image = image
+	_commit_edits([target], command)
+
+
+func _commit_edits(edits: Array, command: String) -> void:
 	var project = api.project.current_project
-	var cel = project.frames[target.frame].cels[target.layer]
-	# serialize_cel_undo_data wants a typed Array[BaseCel]; copy the type from frame.cels.
-	var cels: Array = project.frames[target.frame].cels.duplicate()
+	var first: Dictionary = edits[0]
+	var cels: Array = project.frames[first.frame].cels.duplicate()
 	cels.clear()
-	cels.append(cel)
+	for edit in edits:
+		cels.append(project.frames[edit.frame].cels[edit.layer])
+
 	var undo_data := {}
 	project.serialize_cel_undo_data(cels, undo_data)
+	for i in edits.size():
+		_write_cel(project, cels[i], edits[i])
 
+	var redo_data := {}
+	project.serialize_cel_undo_data(cels, redo_data)
+	var history = project.undo_redo
+	var layer_name: String = project.layers[first.layer].name
+	history.create_action("MCP %s: %s" % [command, layer_name])
+	project.deserialize_cel_undo_data(redo_data, undo_data)
+	for cel in cels:
+		history.add_do_method(cel.update_texture)
+		history.add_undo_method(cel.update_texture)
+	var global = api.general.get_global()
+	history.add_do_method(global.undo_or_redo.bind(false))
+	history.add_undo_method(global.undo_or_redo.bind(true))
+	history.commit_action()
+
+
+func _write_cel(project, cel, target: Dictionary) -> void:
+	var image: Image = target.image
 	var used := image.get_used_rect()
 	var new_offset := Vector2i.ZERO
 	var part: Image
@@ -656,18 +745,6 @@ func _commit(target: Dictionary, image: Image, command: String) -> void:
 	else:
 		cel_image.copy_from_custom(part)
 	cel.change_offset(new_offset)
-
-	var redo_data := {}
-	project.serialize_cel_undo_data(cels, redo_data)
-	var layer_name: String = project.layers[target.layer].name
-	project.undo_redo.create_action("MCP %s: %s" % [command, layer_name])
-	project.deserialize_cel_undo_data(redo_data, undo_data)
-	project.undo_redo.add_do_method(cel.update_texture)
-	project.undo_redo.add_undo_method(cel.update_texture)
-	var global = api.general.get_global()
-	project.undo_redo.add_do_method(global.undo_or_redo.bind(false, target.frame, target.layer))
-	project.undo_redo.add_undo_method(global.undo_or_redo.bind(true, target.frame, target.layer))
-	project.undo_redo.commit_action()
 
 
 func _blend_frame(project, frame: int) -> Image:

@@ -38,6 +38,8 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `fill_rect` | rechthoek vullen; zonder positie/maat de hele laag | `transparent` = laag leegmaken |
 | `copy_selection`, `move_selection` | kopieer of verplaats een rechthoek binnen één cel | de bestemming krijgt ook transparante pixels |
 | `shift_layer` | verschuif een hele pixellaag in één frame met `dx` en `dy` | buiten het canvas wordt afgesneden |
+| `draw_pixels_in_frames` | teken hetzelfde patroon in gekozen frames met een palet per frame | één undo-stap |
+| `shift_layer_in_frames` | verschuif dezelfde laag in gekozen frames | één undo-stap |
 | `clear_cel` | een laag in een frame leegmaken | |
 | `add_layer` | laag toevoegen, met naam | komt bovenop, of boven `above` |
 | `rename_layer` | laag hernoemen | |
