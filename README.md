@@ -57,11 +57,17 @@ De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels
 
 ### Bestandspaden beperken
 
-Maak desgewenst `pixelorama-mcp.json` in het Pixelorama-profiel en herstart de editor. Vul een bestaande map in, bijvoorbeeld `{"root": "/home/melroy/Pixelorama"}` op Linux of `{"root": "C:/Users/melro/Pixelorama"}` op Windows. De uitbreiding controleert `open_file`, `save_project` en `export_png`. Symbolische links en Windows-junctions worden geweigerd. Gebruik op Windows een lokaal stationspad.
+Maak desgewenst `pixelorama-mcp.json` in het Pixelorama-profiel en herstart de editor. Vul een bestaande map in, bijvoorbeeld `{"root": "/home/melroy/Pixelorama"}` op Linux of `{"root": "C:/Users/melro/Pixelorama"}` op Windows. De uitbreiding controleert `open_file`, `save_project`, `export_png` en de optionele JSON-uitvoer van `export_nestar_asset`. Symbolische links en Windows-junctions worden geweigerd. Gebruik op Windows een lokaal stationspad.
 
 `get_project.path_check` meldt de toegestane map, `off` als het bestand ontbreekt, of `invalid` bij een ongeldige instelling. Bij `invalid` zijn de bestandsopdrachten geblokkeerd totdat je de instelling corrigeert en Pixelorama herstart.
 
 ---
+
+### Een Nestar-sprite exporteren
+
+Gebruik `export_nestar_asset` met één laag en frame en een rechthoek `x`, `y`, `width`, `height`. Kies de breedte en hoogte van de tekening in de demo, inclusief lege marges. De uitvoer is `{pal, rows}`. Elke dekkende kleur krijgt één teken, `.` staat voor leeg. Er passen 62 RGB-kleuren in het palet. Met `allowed_colors` kun je een beperkter doelpalet eisen. Voor gedeeltelijke transparantie, een kleur buiten dat palet of een 63e kleur meldt de opdracht de canvascoördinaten van de afwijking.
+
+Geef eventueel `path` op om dezelfde gegevens als JSON te bewaren binnen de ingestelde map. Andere lagen tellen niet mee.
 
 ## Originele README
 

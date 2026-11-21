@@ -13,6 +13,9 @@ const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 
 const FilePaths := preload("file_paths.gd")
 
+# Match the available symbols in Nestar's Pixel Studio. Dot represents an empty cell.
+const NESTAR_PALETTE_SYMBOLS := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
 var api: Node
 var file_paths := FilePaths.new()
 
@@ -537,6 +540,92 @@ func _cmd_export_png(params: Dictionary) -> Dictionary:
 	if err != OK:
 		return _error("Cannot write %s: %s" % [path, error_string(err)])
 	return {"path": path, "width": sheet.get_width(), "height": sheet.get_height(), "frames": frames.size()}
+
+
+func _cmd_export_nestar_asset(params: Dictionary) -> Dictionary:
+	var target := _target_cel(params, false)
+	if target.has("error"):
+		return target
+	var image: Image = target.image
+	var extent := image.get_size()
+	var values := {}
+	for key in ["x", "y", "width", "height"]:
+		var value = params.get(key, 0 if key in ["x", "y"] else null)
+		var limit := extent.x if key in ["x", "width"] else extent.y
+		var minimum := 0 if key in ["x", "y"] else 1
+		if not (value is int or value is float) or not (value >= minimum and value <= limit) or int(value) != value:
+			return _error("Nestar %s must be an integer from %d to %d" % [key, minimum, limit])
+		values[key] = int(value)
+	var rect := Rect2i(values.x, values.y, values.width, values.height)
+	if not Rect2i(Vector2i.ZERO, extent).encloses(rect):
+		return _error("Nestar export rectangle %s is outside the %d × %d canvas" % [rect, extent.x, extent.y])
+	if rect.get_area() > MAX_READ_PIXELS:
+		return _error("Nestar export accepts at most %d pixels" % MAX_READ_PIXELS)
+
+	var allowed: Variant = params.get("allowed_colors", null)
+	var colors := {}
+	if allowed != null:
+		if not allowed is Array or allowed.is_empty() or allowed.size() > NESTAR_PALETTE_SYMBOLS.length():
+			return _error("allowed_colors must be an array of 1–62 opaque RGB colors")
+		for color in allowed:
+			if not color is String or color.length() != 7 or not color.begins_with("#") or not Color.html_is_valid(color):
+				return _error("Expected an opaque #RRGGBB color, got %s" % str(color))
+			colors[color.to_lower()] = true
+
+	var pal := {}
+	var symbols := {}
+	var rows := []
+	for y in range(rect.position.y, rect.end.y):
+		var row := ""
+		for x in range(rect.position.x, rect.end.x):
+			var pixel := image.get_pixel(x, y)
+			if pixel.a8 == 0:
+				row += "."
+				continue
+			if pixel.a8 != 255:
+				return _error("Pixel (%d, %d) has alpha %d; Nestar accepts only 0 or 255" % [x, y, pixel.a8])
+			var hex := "#" + pixel.to_html(false)
+			if allowed != null and not colors.has(hex):
+				return _error("Pixel (%d, %d) has color %s outside allowed_colors" % [x, y, hex])
+			if not symbols.has(hex):
+				if symbols.size() == NESTAR_PALETTE_SYMBOLS.length():
+					return _error("Pixel (%d, %d) adds color %s beyond the 62-color Nestar palette" % [x, y, hex])
+				var symbol := NESTAR_PALETTE_SYMBOLS[symbols.size()]
+				symbols[hex] = symbol
+				pal[symbol] = hex.to_upper()
+			row += symbols[hex]
+		rows.append(row)
+
+	var asset := {"pal": pal, "rows": rows}
+	if params.has("path"):
+		var saved := _save_nestar_asset(str(params.path), asset)
+		if saved.has("error"):
+			return saved
+		asset.path = saved.path
+	return asset
+
+
+func _save_nestar_asset(requested_path: String, asset: Dictionary) -> Dictionary:
+	var checked := file_paths.check(requested_path)
+	if checked.has("error"):
+		return checked
+	var path: String = checked.path
+	if not path.is_absolute_path() or path.get_extension().to_lower() != "json":
+		return _error("path must be an absolute path ending in .json")
+	var suffix := Crypto.new().generate_random_bytes(8).hex_encode()
+	var temporary := file_paths.check(path + "." + suffix + ".tmp")
+	if temporary.has("error"):
+		return temporary
+	var file := FileAccess.open(temporary.path, FileAccess.WRITE)
+	if file == null:
+		return _error("Cannot write %s: %s" % [path, error_string(FileAccess.get_open_error())])
+	var written := file.store_string(JSON.stringify(asset, "\t") + "\n")
+	file.close()
+	var err := DirAccess.rename_absolute(temporary.path, path) if written else ERR_FILE_CANT_WRITE
+	if err != OK:
+		DirAccess.remove_absolute(temporary.path)
+		return _error("Cannot write %s: %s" % [path, error_string(err)])
+	return {"path": path}
 
 
 ## Finds the cel a drawing command works on (current cel unless frame/layer are given)
