@@ -56,12 +56,13 @@ export async function withPixelorama(run, prepare = async () => {}) {
     await client.connect(new StdioClientTransport({
       command: process.execPath, args: ["dist/index.js"], env: { PIXELORAMA_MCP_PORT: "7651" },
     }));
-    const call = async (name, args = {}) => {
+    const rawCall = async (name, args = {}) => {
       const result = await client.callTool({ name, arguments: args });
       if (result.isError) throw new Error(result.content[0].text);
-      return JSON.parse(result.content[0].text);
+      return result.content;
     };
-    await run({ cli, call, work, profile, installed, editor });
+    const call = async (name, args) => JSON.parse((await rawCall(name, args))[0].text);
+    await run({ cli, call, rawCall, work, profile, installed, editor });
   } catch (error) {
     console.error(log);
     throw error;

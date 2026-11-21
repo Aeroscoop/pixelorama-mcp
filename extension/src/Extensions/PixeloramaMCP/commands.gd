@@ -8,6 +8,11 @@ extends RefCounted
 
 const LAYER_TYPES := ["pixel", "group", "3d", "tilemap", "audio"]
 const MAX_READ_PIXELS := 128 * 128
+# Geometry from Starlite demo/style.css: .wereld, .wereld-vlak and --nav-h.
+const NESTAR_WORLD := Vector2i(112, 216)
+const NESTAR_SCALE := 4
+const NESTAR_PHONE_CHROME := 68 + 64
+const NESTAR_MIN_SCENE_HEIGHT := 480
 ## Characters used to label colors in read_pixels. "." is reserved for transparent.
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
@@ -292,6 +297,44 @@ func _cmd_get_image(params: Dictionary) -> Dictionary:
 	if scale > 1:
 		image.resize(image.get_width() * scale, image.get_height() * scale, Image.INTERPOLATE_NEAREST)
 	return {"png": Marshalls.raw_to_base64(image.save_png_to_buffer()), "frame": frame, "scale": scale}
+
+
+func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	if Vector2i(project.size) != NESTAR_WORLD:
+		return _error("Nestar preview requires a 112 × 216 canvas")
+	var day = params.get("day_frame")
+	var night = params.get("night_frame")
+	for index in [day, night]:
+		if not _int_in_range(index, 0, project.frames.size() - 1):
+			return _error("Select existing day and night frames")
+	var width = params.get("width", 390)
+	var height = params.get("height", 844)
+	if not _int_in_range(width, 240, 448) or not _int_in_range(height, 480, 1000):
+		return _error("Use a phone width of 240–448 px and height of 480–1000 px")
+	var scaled := NESTAR_WORLD * NESTAR_SCALE
+	var scene_height := maxi(NESTAR_MIN_SCENE_HEIGHT, int(height) - NESTAR_PHONE_CHROME)
+	var origin := Vector2i(floori((scaled.x - width) / 2.0), maxi(0, scaled.y - scene_height))
+	var crop := Rect2i(origin, Vector2i(int(width), mini(scaled.y, scene_height)))
+	var preview := Image.create_empty(2 * int(width), scene_height, false, Image.FORMAT_RGBA8)
+	for i in 2:
+		var image := _blend_frame(project, int(day if i == 0 else night))
+		image.convert(Image.FORMAT_RGBA8)
+		image.resize(scaled.x, scaled.y, Image.INTERPOLATE_NEAREST)
+		preview.blit_rect(image, crop, Vector2i(i * int(width), scene_height - crop.size.y))
+	return {
+		"png": Marshalls.raw_to_base64(preview.save_png_to_buffer()),
+		"day_frame": int(day),
+		"night_frame": int(night),
+		"phone": {"width": int(width), "height": int(height)},
+		"per_panel": {"width": int(width), "height": scene_height},
+		"crop": {"x": origin.x, "y": origin.y, "width": crop.size.x, "height": crop.size.y},
+		"pixel_scale": NESTAR_SCALE,
+	}
+
+
+func _int_in_range(value: Variant, minimum: int, maximum: int) -> bool:
+	return (value is int or value is float) and value >= minimum and value <= maximum and int(value) == value
 
 
 func _cmd_add_layer(params: Dictionary) -> Dictionary:

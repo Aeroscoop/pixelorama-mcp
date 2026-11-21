@@ -170,6 +170,23 @@ server.registerTool(
 );
 
 server.registerTool(
+  "preview_nestar_phone",
+  {
+    description: "Compare day (left) and night (right) from a 112 × 216 Nestar canvas using the demo's centered, bottom-aligned 4× phone crop.",
+    inputSchema: {
+      day_frame: z.number().int().min(0),
+      night_frame: z.number().int().min(0),
+      width: z.number().int().min(240).max(448).default(390),
+      height: z.number().int().min(480).max(1000).default(844),
+    },
+  },
+  async (args) => {
+    const { png, ...geometry } = await pixelorama.request<{ png: string }>("preview_nestar_phone", args);
+    return { content: [...json(geometry).content, { type: "image" as const, data: png, mimeType: "image/png" }] };
+  },
+);
+
+server.registerTool(
   "add_layer",
   {
     description: "Add a pixel layer. By default it goes on top of all layers.",
