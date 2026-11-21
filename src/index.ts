@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -183,6 +184,20 @@ server.registerTool(
   async (args) => {
     const { png, ...geometry } = await pixelorama.request<{ png: string }>("preview_nestar_phone", args);
     return { content: [...json(geometry).content, { type: "image" as const, data: png, mimeType: "image/png" }] };
+  },
+);
+
+server.registerTool(
+  "load_nestar_references",
+  {
+    description: "Load or refresh four Nestar demo reference layers in the selected day and night frames of a 112 × 216 RGBA sketch.",
+    inputSchema: { day_frame: z.number().int().min(0), night_frame: z.number().int().min(0) },
+  },
+  async (args) => {
+    const path = process.env.NESTAR_REFERENCE_DATA;
+    if (!path) throw new Error("Set NESTAR_REFERENCE_DATA to the generated reference JSON file");
+    const data: unknown = JSON.parse(await readFile(path, "utf8"));
+    return json(await pixelorama.request("load_nestar_references", { ...args, data }));
   },
 );
 

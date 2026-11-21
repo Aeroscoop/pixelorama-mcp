@@ -33,6 +33,7 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `list_layers` | alle lagen van onder naar boven, met index, groepslaag, oogje, zichtbaarheid via bovenliggende groepen en slot | lees opnieuw als lagen verplaatst zijn |
 | `set_layer_visibility` | oogje van een laag op naam aan of uit zetten, voor alle frames | geef bij gelijke namen ook `index` mee. Een wijziging is één undo-stap |
 | `get_image` | het frame als afbeelding (alle zichtbare lagen) | om te kijken; `scale` 2 à 3 is genoeg |
+| `load_nestar_references` | laad diertje, sterrenpot, pakje en brief in een groep voor dag en nacht | RGBA-schets van 112 × 216, zie README voor de bron |
 | `preview_nestar_phone` | dag- en nachtframe naast elkaar met de telefoonuitsnede van de Nestar-demo | canvas 112 × 216, standaard telefoon 390 × 844, kies bijvoorbeeld 320 × 844 voor een smal scherm |
 | `read_pixels` | pixels van één laag als letterraster + kleuren; `palette_slots` zegt welke letter welk paletvakje is | max. 16.384 pixels en ± 80 kleuren per keer: lees in stukken |
 | `draw_pixels` | teken een letterraster (`rows` + `palette`) op `x`, `y` | tekens die niet in `palette` staan (zoals `.`) laten de pixel staan; zet een teken op `transparent` om te gummen |
