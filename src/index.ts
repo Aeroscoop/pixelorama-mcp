@@ -268,6 +268,53 @@ server.registerTool(
   async (args) => json(await pixelorama.request("select_cel", args)),
 );
 
+const animationIndex = z.number().int().min(0);
+server.registerTool(
+  "get_animation",
+  { description: "Read frame durations in seconds, animation tags, onion skin and playback status." },
+  async () => json(await pixelorama.request("get_animation")),
+);
+server.registerTool(
+  "duplicate_frame",
+  {
+    description: "Duplicate an existing frame into independent cels. Defaults to insertion after the source frame.",
+    inputSchema: { frame, after: animationIndex.optional() },
+  },
+  async (args) => json(await pixelorama.request("duplicate_frame", args)),
+);
+server.registerTool(
+  "set_frame_duration",
+  {
+    description: "Set an individual frame's playback duration in seconds. One undo step.",
+    inputSchema: { frame, seconds: z.number().min(0.01).max(60) },
+  },
+  async (args) => json(await pixelorama.request("set_frame_duration", args)),
+);
+server.registerTool(
+  "set_animation_tag",
+  {
+    description: "Create or update a named tag with an inclusive, zero-based range. One undo step.",
+    inputSchema: { name: z.string().min(1), first: animationIndex, last: animationIndex },
+  },
+  async (args) => json(await pixelorama.request("set_animation_tag", args)),
+);
+server.registerTool(
+  "set_onion_skin",
+  {
+    description: "Show or hide a translucent copy of the previous frame in the editing view.",
+    inputSchema: { enabled: z.boolean() },
+  },
+  async (args) => json(await pixelorama.request("set_onion_skin", args)),
+);
+server.registerTool(
+  "play_animation",
+  {
+    description: "Play the whole timeline or a named tag forwards using Pixelorama's playback controls. Pass false to stop.",
+    inputSchema: { play: z.boolean(), tag: z.string().min(1).optional() },
+  },
+  async (args) => json(await pixelorama.request("play_animation", args)),
+);
+
 server.registerTool(
   "save_project",
   {

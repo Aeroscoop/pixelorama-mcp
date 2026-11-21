@@ -426,6 +426,165 @@ func _cmd_add_frame(params: Dictionary) -> Dictionary:
 	return _cmd_get_project({})
 
 
+func _cmd_get_animation(_params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var timeline = global.animation_timeline
+	var durations := []
+	for frame in project.frames:
+		durations.append(frame.get_duration_in_seconds(project.fps))
+	var tags := []
+	for tag in project.animation_tags:
+		tags.append({"name": tag.name, "first": tag.from - 1, "last": tag.to - 1})
+	var playback := {"playing": timeline.is_animation_running}
+	if timeline.is_animation_running:
+		playback["first"] = timeline.first_frame
+		playback["last"] = timeline.last_frame
+	return {
+		"current_frame": project.current_frame,
+		"fps": project.fps,
+		"durations_seconds": durations,
+		"tags": tags,
+		"onion_skin": global.onion_skinning,
+		"onion_previous": global.onion_skinning_past_rate,
+		"onion_next": global.onion_skinning_future_rate,
+		"playback": playback,
+	}
+
+
+func _valid_frame(project, index: Variant) -> bool:
+	return (index is int or index is float) and index >= 0 and index < project.frames.size() and int(index) == index
+
+
+func _cmd_duplicate_frame(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var frame = params.get("frame", project.current_frame)
+	var after = params.get("after", frame)
+	if not _valid_frame(project, frame) or not _valid_frame(project, after):
+		return _error("Frame and insertion point must be existing frame indices")
+	# Copy every cel independently even for layers that normally create linked cels.
+	var linked_layers := []
+	for layer in project.layers:
+		if layer.new_cels_linked:
+			linked_layers.append(layer)
+			layer.new_cels_linked = false
+	global.animation_timeline.copy_frames([int(frame)], int(after), false)
+	for layer in linked_layers:
+		layer.new_cels_linked = true
+	return _cmd_get_animation({})
+
+
+func _cmd_set_frame_duration(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var index = params.get("frame", project.current_frame)
+	var seconds = params.get("seconds")
+	if not _valid_frame(project, index):
+		return _error("Frame does not exist")
+	if not (seconds is int or seconds is float) or not (seconds >= 0.01 and seconds <= 60.0):
+		return _error("Duration must be between 0.01 and 60 seconds")
+	var frame = project.frames[int(index)]
+	var duration: float = seconds * project.fps
+	if not is_equal_approx(frame.duration, duration):
+		var history = project.undo_redo
+		history.create_action("MCP set_frame_duration")
+		history.add_do_property(frame, "duration", duration)
+		history.add_undo_property(frame, "duration", frame.duration)
+		history.add_do_method(global.undo_or_redo.bind(false))
+		history.add_undo_method(global.undo_or_redo.bind(true))
+		history.commit_action()
+	return _cmd_get_animation({})
+
+
+func _cmd_set_animation_tag(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var name := str(params.get("name", "")).strip_edges()
+	var first = params.get("first")
+	var last = params.get("last")
+	if name.is_empty() or not _valid_frame(project, first) or not _valid_frame(project, last) or first > last:
+		return _error("Supply a tag name and an inclusive range of existing frames")
+	var existing := _tags_named(project, name)
+	if existing.size() > 1:
+		return _error("Multiple tags have the name '%s'" % name)
+	var tags = project.animation_tags.duplicate()
+	if existing.is_empty():
+		tags.append(AnimationTag.new(name, Color.SKY_BLUE, int(first) + 1, int(last) + 1))
+	else:
+		var before = existing[0]
+		if before.from == int(first) + 1 and before.to == int(last) + 1:
+			return _cmd_get_animation({})
+		var updated = before.duplicate()
+		updated.from = int(first) + 1
+		updated.to = int(last) + 1
+		tags[tags.find(before)] = updated
+	var history = project.undo_redo
+	history.create_action("MCP set_animation_tag")
+	history.add_do_property(project, "animation_tags", tags)
+	history.add_undo_property(project, "animation_tags", project.animation_tags)
+	history.add_do_method(global.undo_or_redo.bind(false))
+	history.add_undo_method(global.undo_or_redo.bind(true))
+	history.commit_action()
+	return _cmd_get_animation({})
+
+
+func _tags_named(project, name: String) -> Array:
+	return project.animation_tags.filter(func(tag): return tag.name == name)
+
+
+func _cmd_set_onion_skin(params: Dictionary) -> Dictionary:
+	var enabled = params.get("enabled")
+	if not enabled is bool:
+		return _error("enabled must be a boolean")
+	var global = api.general.get_global()
+	var timeline = global.animation_timeline
+	if enabled:
+		timeline.get_node("%PastOnionSkinning").value = 1
+		timeline.get_node("%FutureOnionSkinning").value = 0
+	if global.onion_skinning != enabled:
+		timeline._on_OnionSkinning_pressed()
+	else:
+		global.canvas.refresh_onion()
+	return _cmd_get_animation({})
+
+
+func _cmd_play_animation(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var timeline = global.animation_timeline
+	var play = params.get("play")
+	if not play is bool:
+		return _error("play must be a boolean")
+	var first := 0
+	var last: int = project.frames.size() - 1
+	if play and params.has("tag"):
+		var tags := _tags_named(project, str(params.tag))
+		if tags.size() != 1:
+			return _error("Expected one tag named '%s'" % params.tag)
+		first = tags[0].from - 1
+		last = tags[0].to - 1
+	if play and first >= last:
+		return _error("Playback requires at least two frames")
+	timeline.play_forward.button_pressed = false
+	timeline.play_backwards.button_pressed = false
+	if not play:
+		timeline.animation_timer.stop()
+		timeline.is_animation_running = false
+		return _cmd_get_animation({})
+	project.selected_cels.clear()
+	project.change_cel(first, -1)
+
+	# Start the native timer and buttons without restricting playback to an overlapping tag.
+	var filter_tags: bool = global.play_only_tags
+	global.play_only_tags = false
+	timeline.play_forward.button_pressed = true
+	global.play_only_tags = filter_tags
+	timeline.first_frame = first
+	timeline.last_frame = last
+	return _cmd_get_animation({})
+
+
 func _cmd_select_cel(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
 	var frame := int(params.get("frame", project.current_frame))
