@@ -220,7 +220,7 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 				image.set_pixelv(pos, palette[symbol])
 				changed += 1
 
-	_commit(target, image)
+	_commit(target, image, "draw_pixels")
 	var result := {"frame": target.frame, "layer": target.layer, "pixels_changed": changed}
 	if not unknown.is_empty():
 		result.ignored_characters = "".join(PackedStringArray(unknown.keys()))
@@ -239,7 +239,7 @@ func _cmd_fill_rect(params: Dictionary) -> Dictionary:
 	var rect := _rect_param(params, image.get_size())
 	if rect.has_area():
 		image.fill_rect(rect, color[0])
-	_commit(target, image)
+	_commit(target, image, "fill_rect")
 	return {"frame": target.frame, "layer": target.layer, "pixels_changed": rect.get_area()}
 
 
@@ -571,7 +571,7 @@ func _target_cel(params: Dictionary, for_writing := true) -> Dictionary:
 
 ## Writes a canvas-sized image back into the cel as one undo step.
 ## The cel is shrunk to the used area and its offset set, like Pixelorama's own tools.
-func _commit(target: Dictionary, image: Image) -> void:
+func _commit(target: Dictionary, image: Image, command: String) -> void:
 	var project = api.project.current_project
 	var cel = project.frames[target.frame].cels[target.layer]
 	# serialize_cel_undo_data wants a typed Array[BaseCel]; copy the type from frame.cels.
@@ -595,7 +595,8 @@ func _commit(target: Dictionary, image: Image) -> void:
 
 	var redo_data := {}
 	project.serialize_cel_undo_data(cels, redo_data)
-	project.undo_redo.create_action("MCP draw")
+	var layer_name: String = project.layers[target.layer].name
+	project.undo_redo.create_action("MCP %s: %s" % [command, layer_name])
 	project.deserialize_cel_undo_data(redo_data, undo_data)
 	project.undo_redo.add_do_method(cel.update_texture)
 	project.undo_redo.add_undo_method(cel.update_texture)
