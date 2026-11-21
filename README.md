@@ -43,17 +43,6 @@ Start Pixelorama en vraag via MCP `get_project` op. Configureer de agent als lok
 
 Beide instellingen gelden voor de open editor. Ze wijzigen geen projectpixels en komen niet in exports of in de ongedaan-maakgeschiedenis.
 
-### Herhaalbare test
-
-Pak de officiële [Linux-release van Pixelorama 1.2.4](https://github.com/Orama-Interactive/Pixelorama/releases/tag/v1.2.4) uit. Bouw de uitbreiding en geef het volledige pad op. Houd poort 7651 vrij voor de test.
-
-```sh
-npm run build
-PIXELORAMA_BIN=/pad/naar/Pixelorama.x86_64 npm run test:pixelorama
-```
-
-De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels. Hij controleert via MCP de verbinding en een tekeninstelling, installeert een tweede build terwijl de tekening open is, en controleert versieverschil, herhaling, behoud van de tekening en uitschakelen.
-
 ### Nestar-referenties laden
 
 Maak een RGBA-project van 112 × 216 met een frame voor dag en een voor nacht. Maak referentiedata uit een vertrouwde lokale checkout van `Aeroscoop/starlite`:
@@ -65,6 +54,17 @@ node scripts/export-nestar-references.mjs /pad/naar/starlite/demo > /pad/naar/ne
 Zet `NESTAR_REFERENCE_DATA` op dat JSON-pad in de omgeving van de MCP-server. Gebruik daarna `load_nestar_references` met `day_frame` en `night_frame`. De opdracht maakt een groep met vier vergrendelde pixellagen aan of ververst de bestaande lagen. Bij verversen blijven hun namen, ogen en groepsindeling behouden. Gebruik `set_layer_visibility` voor het oog van een referentie of de hele groep.
 
 De bron is een momentopname van Pip in rust, een sterrenpot die voor 70% gevuld is, en een brief boven het pakje. De pot gebruikt de lichte en donkere weergave van de demo. De brievenbus heeft in deze demo geen eigen sprite. Gebruik de referenties om die in een eigen schetslaag te plaatsen.
+
+### Herhaalbare test
+
+Pak de officiële [Linux-release van Pixelorama 1.2.4](https://github.com/Orama-Interactive/Pixelorama/releases/tag/v1.2.4) uit. Bouw de uitbreiding en geef het volledige pad op. Houd poort 7651 vrij voor de test.
+
+```sh
+npm run build
+PIXELORAMA_BIN=/pad/naar/Pixelorama.x86_64 npm run test:pixelorama
+```
+
+De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels. Hij controleert via MCP de verbinding en een tekeninstelling, installeert een tweede build terwijl de tekening open is, en controleert versieverschil, herhaling, behoud van de tekening en uitschakelen.
 
 ## Nog te doen
 - Betere namen voor stappen in de geschiedenis (#1).
