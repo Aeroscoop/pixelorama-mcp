@@ -2,6 +2,7 @@
 
 Aangepaste versie van [CyberIce2077/pixelorama-mcp](https://github.com/CyberIce2077/pixelorama-mcp) (MIT, zie LICENSE). Gemaakt voor Nestar, maar werkt met elk project in Pixelorama.
 **Agents: lees eerst [AGENTS.md](AGENTS.md).**
+De [uitbreidingsgids](docs/uitbreiding-en-tests.md) beschrijft de voorgestelde workflow, de pull requests en de tests met Pixelorama 1.2.4.
 
 ## Wat er anders is dan het origineel
 - **Werkt met Pixelorama 1.2 (uitbreidings-API 10).** Sinds 1.2 groeit een laag mee met de inhoud (een nieuwe laag is 1 × 1 pixel, met een verschuiving). Het origineel schreef daarbuiten en tekende niets. Nu werkt elke opdracht op een kopie ter grootte van het werkvlak en laat de laag groeien en krimpen zoals Pixelorama zelf.
