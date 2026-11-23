@@ -503,8 +503,6 @@ func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 
 func _cmd_load_nestar_references(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
-	if Vector2i(project.size) != NESTAR_WORLD:
-		return _error("Nestar references require a 112 × 216 canvas")
 	var day = params.get("day_frame")
 	var night = params.get("night_frame")
 	if not _int_in_range(day, 0, project.frames.size() - 1) or not _int_in_range(night, 0, project.frames.size() - 1) or day == night:

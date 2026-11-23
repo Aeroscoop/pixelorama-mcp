@@ -242,12 +242,16 @@ server.registerTool(
 server.registerTool(
   "load_nestar_references",
   {
-    description: "Load or refresh four Nestar demo reference layers in the selected day and night frames of a 112 × 216 RGBA sketch.",
-    inputSchema: { day_frame: z.number().int().min(0), night_frame: z.number().int().min(0) },
+    description: "Load or refresh locked reference layers in a group, for a day and a night frame of an RGBA sketch. Defaults to the four Nestar demo assets on 112 × 216; the data file can set another canvas, other references and names.",
+    inputSchema: {
+      day_frame: z.number().int().min(0),
+      night_frame: z.number().int().min(0),
+      data_path: z.string().optional().describe("Reference JSON file; default NESTAR_REFERENCE_DATA"),
+    },
   },
-  async (args) => {
-    const path = process.env.NESTAR_REFERENCE_DATA;
-    if (!path) throw new Error("Set NESTAR_REFERENCE_DATA to the generated reference JSON file");
+  async ({ data_path, ...args }) => {
+    const path = data_path ? absolute(data_path) : process.env.NESTAR_REFERENCE_DATA;
+    if (!path) throw new Error("Pass data_path or set NESTAR_REFERENCE_DATA to a reference JSON file");
     const data: unknown = JSON.parse(await readFile(path, "utf8"));
     return json(await pixelorama.request("load_nestar_references", { ...args, data }));
   },
