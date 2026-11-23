@@ -137,6 +137,53 @@ server.registerTool(
   async (args) => json(await pixelorama.request("fill_rect", { ...args, color: "transparent" })),
 );
 
+const shiftCoordinate = z.number().int().min(-8192).max(8192);
+const selectionInput = {
+  x: shiftCoordinate.min(0), y: shiftCoordinate.min(0),
+  width: shiftCoordinate.min(1), height: shiftCoordinate.min(1),
+  to_x: shiftCoordinate, to_y: shiftCoordinate, frame, layer,
+};
+for (const command of ["move_selection", "copy_selection"] as const) {
+  server.registerTool(command, {
+    description: `${command === "move_selection" ? "Move" : "Copy"} a rectangle within a pixel cel. The destination includes transparent pixels and clips to the canvas.`,
+    inputSchema: selectionInput,
+  }, async (args) => json(await pixelorama.request(command, args)));
+}
+
+server.registerTool(
+  "shift_layer",
+  {
+    description: "Shift the entire pixel layer in the selected frame by dx and dy, clipping pixels outside the canvas.",
+    inputSchema: { dx: shiftCoordinate, dy: shiftCoordinate, frame, layer },
+  },
+  async (args) => json(await pixelorama.request("shift_layer", args)),
+);
+
+server.registerTool(
+  "draw_pixels_in_frames",
+  {
+    description: "Draw one pixel pattern across selected frames in one undo step. Supply each frame's own palette.",
+    inputSchema: {
+      rows: z.array(z.string()).min(1),
+      x: z.number().int().default(0), y: z.number().int().default(0), layer,
+      frames: z.array(z.object({
+        frame: z.number().int().min(0),
+        palette: z.record(z.string().length(1), z.string()),
+      })).min(1),
+    },
+  },
+  async (args) => json(await pixelorama.request("draw_pixels_in_frames", args)),
+);
+
+server.registerTool(
+  "shift_layer_in_frames",
+  {
+    description: "Shift the layer by the same amount in selected frames. All changes share one undo step.",
+    inputSchema: { frames: z.array(z.number().int().min(0)).min(1), dx: shiftCoordinate, dy: shiftCoordinate, layer },
+  },
+  async (args) => json(await pixelorama.request("shift_layer_in_frames", args)),
+);
+
 server.registerTool(
   "read_pixels",
   {
@@ -173,12 +220,17 @@ server.registerTool(
 server.registerTool(
   "preview_nestar_phone",
   {
-    description: "Compare day (left) and night (right) from a 112 × 216 Nestar canvas using the demo's centered, bottom-aligned 4× phone crop.",
+    description: "Compare day (left) and night (right) frames as a phone shows them: scaled up, centered and bottom-aligned. Defaults are the Nestar demo (112 × 216 canvas, 4×, 390 × 844 phone); override the layout for another size or project.",
     inputSchema: {
       day_frame: z.number().int().min(0),
       night_frame: z.number().int().min(0),
-      width: z.number().int().min(240).max(448).default(390),
-      height: z.number().int().min(480).max(1000).default(844),
+      width: z.number().int().min(1).optional().describe("Phone width in CSS px, default 390 (at most the scaled canvas)"),
+      height: z.number().int().min(1).max(4000).optional().describe("Phone height in CSS px, default 844"),
+      canvas_width: z.number().int().min(1).max(4096).optional().describe("Expected canvas width, default 112"),
+      canvas_height: z.number().int().min(1).max(4096).optional().describe("Expected canvas height, default 216"),
+      scale: z.number().int().min(1).max(16).optional().describe("CSS px per canvas pixel, default 4"),
+      chrome_height: z.number().int().min(0).max(1000).optional().describe("Phone height taken by navigation and margins, default 132"),
+      min_scene_height: z.number().int().min(1).max(4000).optional().describe("Smallest visible scene height, default 480"),
     },
   },
   async (args) => {
@@ -298,6 +350,53 @@ server.registerTool(
     inputSchema: { frame, layer },
   },
   async (args) => json(await pixelorama.request("select_cel", args)),
+);
+
+const animationIndex = z.number().int().min(0);
+server.registerTool(
+  "get_animation",
+  { description: "Read frame durations in seconds, animation tags, onion skin and playback status." },
+  async () => json(await pixelorama.request("get_animation")),
+);
+server.registerTool(
+  "duplicate_frame",
+  {
+    description: "Duplicate an existing frame into independent cels. Defaults to insertion after the source frame.",
+    inputSchema: { frame, after: animationIndex.optional() },
+  },
+  async (args) => json(await pixelorama.request("duplicate_frame", args)),
+);
+server.registerTool(
+  "set_frame_duration",
+  {
+    description: "Set an individual frame's playback duration in seconds. One undo step.",
+    inputSchema: { frame, seconds: z.number().min(0.01).max(60) },
+  },
+  async (args) => json(await pixelorama.request("set_frame_duration", args)),
+);
+server.registerTool(
+  "set_animation_tag",
+  {
+    description: "Create or update a named tag with an inclusive, zero-based range. One undo step.",
+    inputSchema: { name: z.string().min(1), first: animationIndex, last: animationIndex },
+  },
+  async (args) => json(await pixelorama.request("set_animation_tag", args)),
+);
+server.registerTool(
+  "set_onion_skin",
+  {
+    description: "Show or hide a translucent copy of the previous frame in the editing view. Turning it off restores the user's own onion-skin frame counts.",
+    inputSchema: { enabled: z.boolean() },
+  },
+  async (args) => json(await pixelorama.request("set_onion_skin", args)),
+);
+server.registerTool(
+  "play_animation",
+  {
+    description: "Play the whole timeline or a named tag forwards using Pixelorama's playback controls. Pass false to stop.",
+    inputSchema: { play: z.boolean(), tag: z.string().min(1).optional() },
+  },
+  async (args) => json(await pixelorama.request("play_animation", args)),
 );
 
 server.registerTool(
