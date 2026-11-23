@@ -37,6 +37,9 @@ await withPixelorama(async ({ cli, call, work, profile, installed, editor }) => 
   assert.equal(disabled.enabled, false);
   assert.equal(disabled.editor_responding, false);
   assert.deepEqual(cli("disable"), disabled);
+  // The editor still runs with the extension off: enabling now must refuse.
+  assert.throws(() => cli("enable"), /close Pixelorama/);
+  assert.match(await readFile(join(profile, "config.ini"), "utf8"), /^PixeloramaMCP=false$/m);
   assert.equal(editor.exitCode, null);
   await assert.rejects(call("get_project"), /Cannot reach Pixelorama|Connection to Pixelorama closed/);
   const config = await readFile(join(profile, "config.ini"), "utf8");
@@ -53,4 +56,4 @@ await withPixelorama(async ({ cli, call, work, profile, installed, editor }) => 
   assert.equal(await readFile(join(profile, "config.ini"), "utf8"),
     preferences.replace("[extensions]\n", "[extensions]\nPixeloramaMCP=true\n"));
 });
-console.log("Pixelorama 1.2.4: install, enable, drawing settings, live update and disable passed.");
+console.log("Pixelorama 1.2.4: install, enable, drawing settings, live update, disable and the running-editor check passed.");
