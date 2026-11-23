@@ -243,6 +243,83 @@ func _cmd_fill_rect(params: Dictionary) -> Dictionary:
 	return {"frame": target.frame, "layer": target.layer, "pixels_changed": rect.get_area()}
 
 
+func _cmd_copy_selection(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "copy_selection", false)
+
+
+func _cmd_move_selection(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "move_selection", true)
+
+
+func _cmd_shift_layer(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "shift_layer", true)
+
+
+func _shift_single_cel(params: Dictionary, command: String, move: bool) -> Dictionary:
+	var target := _target_cel(params)
+	if target.has("error"):
+		return target
+	var result := _prepare_shift(target, params, move, command == "shift_layer")
+	if result.has("error"):
+		return result
+	if result.changed:
+		_commit(target, target.image, command)
+	return {"frame": target.frame, "layer": target.layer, "changed": result.changed}
+
+
+func _prepare_shift(target: Dictionary, params: Dictionary, move: bool, whole: bool) -> Dictionary:
+	var project = api.project.current_project
+	var cel = project.frames[target.frame].cels[target.layer]
+	if project.layers[target.layer].is_locked_in_hierarchy():
+		return _error("Layer %d is locked" % target.layer)
+	if cel.link_set != null and cel.link_set.size() > 1:
+		return _error("Unlink the cel before shifting its pixels")
+	var image: Image = target.image
+	var bounds := Rect2i(Vector2i.ZERO, image.get_size())
+	var source := bounds
+	var destination := Vector2i.ZERO
+	if whole:
+		for key in ["dx", "dy"]:
+			if not _valid_shift_number(params.get(key)):
+				return _error("%s must be an integer from -8192 to 8192" % key)
+		destination = Vector2i(int(params.dx), int(params.dy))
+	else:
+		for key in ["x", "y", "width", "height", "to_x", "to_y"]:
+			if not _valid_shift_number(params.get(key)):
+				return _error("%s must be an integer from -8192 to 8192" % key)
+		source = Rect2i(int(params.x), int(params.y), int(params.width), int(params.height))
+		if not source.has_area() or not bounds.encloses(source):
+			return _error("The source rectangle must fit inside the canvas")
+		destination = Vector2i(int(params.to_x), int(params.to_y))
+	if source.position == destination:
+		return {"changed": false}
+
+	var original: PackedByteArray = image.get_data()
+	_shift_pixels(image, source, destination, move, Color(0, 0, 0, 0))
+	var changed := original != image.get_data()
+	if cel.get_image().is_indexed:
+		var cel_indices: Image = cel.get_image().indices_image
+		var indices := Image.create_empty(bounds.size.x, bounds.size.y, false, Image.FORMAT_R8)
+		indices.blit_rect(cel_indices, Rect2i(Vector2i.ZERO, cel_indices.get_size()), cel.offset)
+		var original_indices := indices.get_data()
+		_shift_pixels(indices, source, destination, move, Color(0, 0, 0, 0))
+		target.indices = indices
+		changed = changed or original_indices != indices.get_data()
+	return {"changed": changed}
+
+
+func _valid_shift_number(value: Variant) -> bool:
+	return (value is int or value is float) and absf(value) <= 8192 and int(value) == value
+
+
+func _shift_pixels(image: Image, source: Rect2i, destination: Vector2i, move: bool, empty: Color) -> void:
+	# Snapshot before clearing to support overlapping source and destination.
+	var copied := image.get_region(source)
+	if move:
+		image.fill_rect(source, empty)
+	image.blit_rect(copied, Rect2i(Vector2i.ZERO, source.size), destination)
+
+
 func _cmd_read_pixels(params: Dictionary) -> Dictionary:
 	var target := _target_cel(params, false)
 	if target.has("error"):
@@ -590,7 +667,13 @@ func _commit(target: Dictionary, image: Image, command: String) -> void:
 		part = image.get_region(used)
 		new_offset = used.position
 	part.convert(project.get_image_format())
-	cel.get_image().copy_from_custom(part)
+	var cel_image = cel.get_image()
+	if target.has("indices"):
+		cel_image.copy_from(part)
+		var indices: Image = target.indices
+		cel_image.indices_image.copy_from(indices.get_region(Rect2i(new_offset, part.get_size())))
+	else:
+		cel_image.copy_from_custom(part)
 	cel.change_offset(new_offset)
 
 	var redo_data := {}

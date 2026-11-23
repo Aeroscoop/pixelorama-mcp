@@ -136,6 +136,28 @@ server.registerTool(
   async (args) => json(await pixelorama.request("fill_rect", { ...args, color: "transparent" })),
 );
 
+const shiftCoordinate = z.number().int().min(-8192).max(8192);
+const selectionInput = {
+  x: shiftCoordinate.min(0), y: shiftCoordinate.min(0),
+  width: shiftCoordinate.min(1), height: shiftCoordinate.min(1),
+  to_x: shiftCoordinate, to_y: shiftCoordinate, frame, layer,
+};
+for (const command of ["move_selection", "copy_selection"] as const) {
+  server.registerTool(command, {
+    description: `${command === "move_selection" ? "Move" : "Copy"} a rectangle within a pixel cel. The destination includes transparent pixels and clips to the canvas.`,
+    inputSchema: selectionInput,
+  }, async (args) => json(await pixelorama.request(command, args)));
+}
+
+server.registerTool(
+  "shift_layer",
+  {
+    description: "Shift the entire pixel layer in the selected frame by dx and dy, clipping pixels outside the canvas.",
+    inputSchema: { dx: shiftCoordinate, dy: shiftCoordinate, frame, layer },
+  },
+  async (args) => json(await pixelorama.request("shift_layer", args)),
+);
+
 server.registerTool(
   "read_pixels",
   {
