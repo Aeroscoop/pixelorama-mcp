@@ -1,5 +1,6 @@
 // Packs extension/ into dist/PixeloramaMCP.zip. Pixelorama loads .zip files the
 // same way as .pck, so no Godot export is needed.
+import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,9 +21,22 @@ const local = [];
 const central = [];
 let offset = 0;
 
-for (const file of listFiles(source).sort()) {
-  const name = Buffer.from(relative(source, file).split("\\").join("/"));
-  const data = readFileSync(file);
+const manifestPath = "src/Extensions/PixeloramaMCP/extension.json";
+const files = new Map(listFiles(source).sort().map((file) => [
+  relative(source, file).split("\\").join("/"),
+  readFileSync(file),
+]));
+const hash = createHash("sha256");
+for (const [name, data] of files) {
+  hash.update(JSON.stringify([name, data.length]));
+  hash.update(data);
+}
+const manifest = JSON.parse(files.get(manifestPath));
+manifest.build = hash.digest("hex");
+files.set(manifestPath, Buffer.from(JSON.stringify(manifest)));
+
+for (const [path, data] of files) {
+  const name = Buffer.from(path);
   const compressed = deflateRawSync(data);
   const crc = crc32(data);
 

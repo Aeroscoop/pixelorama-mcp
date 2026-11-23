@@ -9,33 +9,50 @@ Aangepaste versie van [CyberIce2077/pixelorama-mcp](https://github.com/CyberIce2
 - **Kleuren als paletvakje:** `@n` = vakje n (vanaf 0) van het gekozen palet; `read_pixels` meldt `palette_slots`; `get_project` meldt kleurmodus en palet.
 - Getest met Pixelorama v1.2.4 op Windows (aeropc), 15-11-2026.
 
-## Installeren
-Zoals hieronder bij Setup, met deze repo in plaats van het origineel. Daarna in de Claude-app (instellingenbestand, `mcpServers`), Claude Code (`claude mcp add pixelorama -- node <pad>/dist/index.js`) of Codex (`codex mcp add`) als lokale stdio-server. Nooit openzetten naar internet.
+## Installeren zonder muis
 
-## Installeren op Linux
-Getest op Windows; deze stappen volgen het installatiescript (`scripts/install-extension.mjs`), dat op Linux `~/.local/share/pixelorama` gebruikt.
+Gebruik Node.js 22 of hoger en Pixelorama 1.2.4. Sluit Pixelorama voordat je de uitbreiding voor het eerst inschakelt. Voer vanuit deze repository op Linux of in PowerShell uit:
 
-1. **Pixelorama 1.2 of nieuwer.** Neem de losse Linux-versie van [GitHub-releases](https://github.com/Orama-Interactive/Pixelorama/releases) (zip of tar.gz, geen installatie nodig). Uitpakken en `Pixelorama.x86_64` starten. Gebruikt die de map `~/.local/share/pixelorama`; dan werkt stap 3 vanzelf.
-   - Flatpak (`com.orama_interactive.Pixelorama`) kan ook, maar die gebruikt `~/.var/app/com.orama_interactive.Pixelorama/data/pixelorama`. Kopieer bij stap 3 de zip dan zelf naar de map `extensions` daarin.
-   - Snap liever niet: die zit afgeschermd en het is niet getest.
-2. **Node.js 22 of nieuwer** (`node -v`). Te oud of niet aanwezig: installeer via [nvm](https://github.com/nvm-sh/nvm) (`nvm install 22`) of het pakket van NodeSource.
-3. **Koppeling bouwen en de uitbreiding plaatsen:**
-   ```sh
-   git clone https://github.com/Aeroscoop/pixelorama-mcp.git ~/projects/pixelorama-mcp
-   cd ~/projects/pixelorama-mcp
-   npm install
-   npm run install-extension
-   ```
-4. **Aanzetten:** Pixelorama opnieuw starten, dan Preferences > Extensions > **Pixelorama MCP** aanvinken.
-5. **Aan de agent koppelen** (lokale stdio-server, nooit naar internet):
-   - Claude Code: `claude mcp add pixelorama -- node ~/projects/pixelorama-mcp/dist/index.js`
-   - Codex: `codex mcp add pixelorama -- node ~/projects/pixelorama-mcp/dist/index.js`
-   - Claude-app: in `~/.config/Claude/claude_desktop_config.json` onder `mcpServers` een blok `"pixelorama": {"command": "node", "args": ["/home/<naam>/projects/pixelorama-mcp/dist/index.js"]}`. Gebruik het volledige pad, geen `~`. Daarna de Claude-app opnieuw starten.
-6. **Controleren:** Pixelorama open met een project, dan de agent `get_project` laten doen. Antwoordt die met maat en lagen, dan werkt het. Geen verbinding: kijk of de uitbreiding aanstaat en of poort 7651 vrij is (`ss -ltn | grep 7651`).
+```sh
+npm ci
+npm run extension -- install
+npm run extension -- enable
+npm run extension -- status
+```
 
-**Paletten meenemen.** Projectpaletten zitten in het `.pxo`-bestand en gaan vanzelf mee. Algemene paletten (zoals `Winter 25`, `Winterhol dag`, `Winterhol nacht`) zijn losse `.json`-bestanden: kopieer ze van `%APPDATA%\Pixelorama\Palettes` (Windows) naar `~/.local/share/pixelorama/Palettes` (Linux) en start Pixelorama opnieuw.
+Start Pixelorama en vraag via MCP `get_project` op. Configureer de agent als lokale stdio-server met `node <volledig-pad>/dist/index.js`. Voor Claude Code en Codex kan dat met `claude mcp add pixelorama -- node <volledig-pad>/dist/index.js` of `codex mcp add pixelorama -- node <volledig-pad>/dist/index.js`.
 
-**Bijwerken** na nieuwe wijzigingen in deze repo: `git pull && npm install && npm run install-extension`, daarna Pixelorama opnieuw starten.
+| Platform | Standaard profiel |
+|---|---|
+| Linux | `$XDG_DATA_HOME/pixelorama` of `~/.local/share/pixelorama` |
+| Linux Flatpak | Zet `PIXELORAMA_DATA_DIR="$HOME/.var/app/com.orama_interactive.Pixelorama/data/pixelorama"` bij het aanroepen van het commando |
+| Windows | `%APPDATA%\pixelorama`. In PowerShell kun je een afwijkend profiel instellen met `$env:PIXELORAMA_DATA_DIR = 'C:\pad\naar\pixelorama'` |
+
+`npm run install-extension` blijft beschikbaar als verkorte vorm van `npm run extension -- install`. Voer na een update `npm ci` en `npm run extension -- install` uit. `on_disk` geeft de versie en build van de ZIP aan. `in_editor` geeft de build die antwoordt voor dit profiel. Bij `restart_required: true` start je Pixelorama opnieuw zodra je klaar bent met het open project. De commando's sluiten Pixelorama of projecttabbladen nooit. Als Windows de ZIP nog in gebruik heeft en vervanging weigert, bewaar je je project en herhaal je de installatie na afsluiten.
+
+`npm run extension -- disable` schakelt de huidige uitbreiding direct uit via de editor en verbreekt de MCP-verbinding. Het project blijft open. Voor een oudere build of een editor waarin de uitbreiding niet draait, wijzig je de voorkeur met gesloten editor. De offline wijziging raakt alleen `PixeloramaMCP` onder `[extensions]` in `config.ini`.
+
+### Tekeninstellingen
+
+`get_drawing_settings` leest twee weergave-instellingen. Met `set_drawing_settings` zet je één of beide opties aan of uit.
+
+| Instelling | Effect |
+|---|---|
+| `show_grid` | Toont het ingestelde raster op het canvas |
+| `show_pixel_grid` | Toont de grenzen tussen afzonderlijke pixels bij voldoende zoom |
+
+Beide instellingen gelden voor de open editor. Ze wijzigen geen projectpixels en komen niet in exports of in de ongedaan-maakgeschiedenis.
+
+### Herhaalbare test
+
+Pak de officiële [Linux-release van Pixelorama 1.2.4](https://github.com/Orama-Interactive/Pixelorama/releases/tag/v1.2.4) uit. Bouw de uitbreiding en geef het volledige pad op. Houd poort 7651 vrij voor de test.
+
+```sh
+npm run build
+PIXELORAMA_BIN=/pad/naar/Pixelorama.x86_64 npm run test:pixelorama
+```
+
+De test maakt een eigen tijdelijk profiel met een proefproject van 8 × 8 pixels. Hij controleert via MCP de verbinding en een tekeninstelling, installeert een tweede build terwijl de tekening open is, en controleert versieverschil, herhaling, behoud van de tekening en uitschakelen.
 
 ## Nog te doen
 - Betere namen voor stappen in de geschiedenis (#1).
@@ -99,12 +116,13 @@ Requires Pixelorama 1.2 (extension API 9) and Node.js 22 or newer.
 git clone https://github.com/CyberIce2077/pixelorama-mcp.git ~/projects/pixelorama-mcp
 cd ~/projects/pixelorama-mcp
 npm install
-npm run install-extension
+npm run extension -- install
+npm run extension -- enable
 ```
 
 `npm install` builds the server and packs the extension into `dist/PixeloramaMCP.zip`. `install-extension` copies it into Pixelorama's extensions folder. You can also install the zip from Pixelorama's Preferences > Extensions.
 
-Restart Pixelorama, enable **Pixelorama MCP** in Preferences > Extensions, then add the server to Claude Code:
+Start Pixelorama, then add the server to Claude Code:
 
 ```sh
 claude mcp add pixelorama -- node ~/projects/pixelorama-mcp/dist/index.js
