@@ -17,7 +17,7 @@ Afspraken per project (maten, lagen, paletten) staan bij dat project, niet hier.
 agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding in Pixelorama
 ```
 - Deze repo: Aeroscoop/pixelorama-mcp, een aangepaste versie van CyberIce2077/pixelorama-mcp (MIT). Wat er anders is: zie README.md.
-- Getest met Pixelorama v1.2.4 (uitbreidings-API 10). Uitbreiding **Pixelorama MCP** moet aan staan in Voorkeuren › Uitbreidingen.
+- Getest met Pixelorama v1.2.4 (uitbreidings-API 10). Zet **Pixelorama MCP** aan met `npm run extension -- enable` vóór het starten van Pixelorama. Gebruik `npm run extension -- status` om de build op schijf en die in de editor te vergelijken.
 - Meerdere agents mogen tegelijk verbonden zijn.
 
 ## Afspraken over tellen
@@ -29,17 +29,26 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | Tool | Wat | Let op |
 |---|---|---|
 | `get_project` | grootte, lagen, frames, actieve laag, kleurmodus, palet, open tabbladen | altijd eerst |
+| `get_drawing_settings`, `set_drawing_settings` | canvasraster en pixelgrenzen in de editor | alleen weergave |
 | `list_layers` | alle lagen van onder naar boven, met index, groepslaag, oogje, zichtbaarheid via bovenliggende groepen en slot | lees opnieuw als lagen verplaatst zijn |
 | `set_layer_visibility` | oogje van een laag op naam aan of uit zetten, voor alle frames | geef bij gelijke namen ook `index` mee. Een wijziging is één undo-stap |
 | `get_image` | het frame als afbeelding (alle zichtbare lagen) | om te kijken; `scale` 2 à 3 is genoeg |
 | `read_pixels` | pixels van één laag als letterraster + kleuren; `palette_slots` zegt welke letter welk paletvakje is | max. 16.384 pixels en ± 80 kleuren per keer: lees in stukken |
 | `draw_pixels` | teken een letterraster (`rows` + `palette`) op `x`, `y` | tekens die niet in `palette` staan (zoals `.`) laten de pixel staan; zet een teken op `transparent` om te gummen |
 | `fill_rect` | rechthoek vullen; zonder positie/maat de hele laag | `transparent` = laag leegmaken |
+| `copy_selection`, `move_selection` | kopieer of verplaats een rechthoek binnen één cel | de bestemming krijgt ook transparante pixels |
+| `shift_layer` | verschuif een hele pixellaag in één frame met `dx` en `dy` | buiten het canvas wordt afgesneden |
+| `draw_pixels_in_frames` | teken hetzelfde patroon in gekozen frames met een palet per frame | één undo-stap |
+| `shift_layer_in_frames` | verschuif dezelfde laag in gekozen frames | één undo-stap |
 | `clear_cel` | een laag in een frame leegmaken | |
 | `add_layer` | laag toevoegen, met naam | komt bovenop, of boven `above` |
 | `rename_layer` | laag hernoemen | |
 | `select_cel` | actieve laag/frame kiezen | |
 | `add_frame` | frame toevoegen | |
+| `duplicate_frame` | kopieer een frame naar zelfstandige cels | standaard direct na het bronframe |
+| `get_animation`, `set_frame_duration` | lees de tijdlijn en stel de tijd per frame in | duur in seconden |
+| `set_animation_tag`, `play_animation` | geef een reeks een naam en speel die af | begin- en eindframe tellen vanaf 0 |
+| `set_onion_skin` | toon het vorige frame doorschijnend | alleen in de editorweergave; uitzetten zet de eigen instellingen van de gebruiker terug |
 | `new_project` | nieuw project in een nieuw tabblad | begint met het laatst gekozen palet |
 | `open_file` | `.pxo` of afbeelding openen | volledig pad; opent een nieuw tabblad |
 | `save_project` | bewaren als `.pxo` | alleen na ja |
@@ -52,7 +61,7 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `set_color_mode` | `indexed` of `rgba` | zie "Indexed en paletten"; vraag eerst |
 | `resize_canvas` | werkvlak vergroten/verkleinen zonder schalen, met `anchor` | standaard `bottom` (onderaan, midden) |
 
-Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad wisselen, paletten verwijderen. Teken met `draw_pixels` en `fill_rect`; de rest doet de gebruiker met de hand.
+Wat er niet is: vrije selecties, penselen, lijnen, van tabblad wisselen, paletten verwijderen. Teken met `draw_pixels` en `fill_rect`; de rest doet de gebruiker met de hand.
 
 ## Indexed en paletten
 - In **Indexed** is elke pixel een paletvakje. Wissel je van palet (`select_palette`), dan kleurt alles mee, vakje voor vakje. Zo maak je bijvoorbeeld dag en nacht: twee paletten met dezelfde volgorde.
@@ -63,7 +72,7 @@ Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad w
   3. kies daarna een palet met dezelfde eerste vakjes plus de hulpkleuren erachter;
   4. teken de hulplagen opnieuw met `@n`.
 - Terug naar RGBA geeft elke pixel de kleur van zijn vakje in het gekozen palet. Daarmee kun je vakjes "omleggen": kies eerst een tijdelijk palet waarin de verkeerde vakjes de goede kleur hebben, zet om naar RGBA en daarna weer naar Indexed.
-- Paletkeuze telt in Pixelorama als een stap. Gebruik `undo` en lees de namen van de stappen terug, zodat je weet wat je terugdraait. Let op: alle teken- en vulopdrachten heten nu "MCP draw" (betere namen staan op de lijst).
+- Paletkeuze telt in Pixelorama als een stap. Gebruik `undo` en lees de namen van de stappen terug, zodat je weet wat je terugdraait. Teken- en vulopdrachten heten `MCP <opdracht>: <laagnaam>`, bijvoorbeeld `MCP draw_pixels: hulp`. `clear_cel` gebruikt de naam `fill_rect`.
 - `undo` en `redo` werken op het actieve tabblad, zoals alle tools.
 
 ## Regels voor jou
@@ -76,9 +85,9 @@ Wat er niet is: selecties, penselen, lijnen, een laag verschuiven, van tabblad w
 ## Bekende valkuilen
 - **"0 pixels veranderd" in een nieuwe laag:** oude versie van de koppeling. Sinds Pixelorama 1.2 groeit een laag mee met de inhoud; onze versie regelt dat.
 - **Nieuwe tools zie je niet:** start de Claude-app, Claude Code of Codex opnieuw na een update van de koppeling.
-- **`set_color_mode`** gebruikt een interne functie van Pixelorama en kan breken bij een nieuwe Pixelorama-versie.
+- **Interne functies van Pixelorama:** `set_color_mode`, `set_drawing_settings` en het uitschakelen via de opdrachtregel gebruiken functies die Pixelorama niet officieel aanbiedt. Ze kunnen breken bij een nieuwe Pixelorama-versie. Test na een update eerst met `npm run test:pixelorama`.
 - **Schermafdrukken (computer use) van Pixelorama werken niet**: gebruik `get_image`.
-- **Veiligheid:** de koppeling luistert alleen op 127.0.0.1, maar elk programma op deze pc kan verbinden, en openen/bewaren mag elk pad. Zet de poort nooit open naar internet (geen tunnel).
+- **Veiligheid:** de koppeling luistert alleen op 127.0.0.1, maar elk programma op deze pc kan verbinden. `get_project.path_check` toont de map die de uitbreiding voor openen, bewaren en exporteren toestaat. Bij `off` zijn alle paden toegestaan, bij `invalid` geen. Zet de poort nooit open naar internet (geen tunnel).
 
 ## Opstarten en problemen
 1. Pixelorama open, uitbreiding aan.

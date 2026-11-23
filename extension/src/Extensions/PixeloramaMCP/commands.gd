@@ -11,7 +11,10 @@ const MAX_READ_PIXELS := 128 * 128
 ## Characters used to label colors in read_pixels. "." is reserved for transparent.
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
+const FilePaths := preload("file_paths.gd")
+
 var api: Node
+var file_paths := FilePaths.new()
 
 
 func _init(extensions_api: Node) -> void:
@@ -41,10 +44,28 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 		"current_frame": project.current_frame,
 		"current_layer": project.current_layer,
 		"save_path": project.save_path,
+		"path_check": file_paths.status(),
 		"color_mode": "indexed" if project.is_indexed() else "rgba",
 		"palette": _current_palette_name(),
 		"open_projects": open_projects,
 	}
+
+
+func _cmd_get_drawing_settings(_params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	return {"show_grid": global.draw_grid, "show_pixel_grid": global.draw_pixel_grid}
+
+
+func _cmd_set_drawing_settings(params: Dictionary) -> Dictionary:
+	for key in params:
+		if key not in ["show_grid", "show_pixel_grid"] or not params[key] is bool:
+			return _error("Expected boolean show_grid or show_pixel_grid")
+	var global = api.general.get_global()
+	if params.has("show_grid") and global.draw_grid != params.show_grid:
+		global.top_menu_container._toggle_show_grid()
+	if params.has("show_pixel_grid") and global.draw_pixel_grid != params.show_pixel_grid:
+		global.top_menu_container._toggle_show_pixel_grid()
+	return _cmd_get_drawing_settings({})
 
 
 func _layer_entry(project, index: int) -> Dictionary:
@@ -143,7 +164,10 @@ func _cmd_new_project(params: Dictionary) -> Dictionary:
 
 
 func _cmd_open_file(params: Dictionary) -> Dictionary:
-	var path := str(params.get("path", ""))
+	var checked := file_paths.check(str(params.get("path", "")))
+	if checked.has("error"):
+		return checked
+	var path: String = checked.path
 	if not FileAccess.file_exists(path):
 		return _error("File not found: %s" % path)
 	var open_save = api.import.open_save_autoload()
@@ -165,6 +189,13 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 	if target.has("error"):
 		return target
 
+	var result := _prepare_draw(target, params)
+	if not result.has("error"):
+		_commit(target, target.image, "draw_pixels")
+	return result
+
+
+func _prepare_draw(target: Dictionary, params: Dictionary) -> Dictionary:
 	var palette := {}
 	var raw_palette = params.get("palette", {})
 	if not raw_palette is Dictionary or raw_palette.is_empty():
@@ -180,7 +211,9 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 	var image: Image = target.image
 	var bounds := Rect2i(Vector2i.ZERO, image.get_size())
 	var origin := Vector2i(int(params.get("x", 0)), int(params.get("y", 0)))
-	var rows: Array = params.get("rows", [])
+	var rows = params.get("rows", [])
+	if not rows is Array:
+		return _error("rows must be an array")
 	var changed := 0
 	var unknown := {}
 	for y in rows.size():
@@ -196,7 +229,6 @@ func _cmd_draw_pixels(params: Dictionary) -> Dictionary:
 				image.set_pixelv(pos, palette[symbol])
 				changed += 1
 
-	_commit(target, image)
 	var result := {"frame": target.frame, "layer": target.layer, "pixels_changed": changed}
 	if not unknown.is_empty():
 		result.ignored_characters = "".join(PackedStringArray(unknown.keys()))
@@ -215,8 +247,142 @@ func _cmd_fill_rect(params: Dictionary) -> Dictionary:
 	var rect := _rect_param(params, image.get_size())
 	if rect.has_area():
 		image.fill_rect(rect, color[0])
-	_commit(target, image)
+	_commit(target, image, "fill_rect")
 	return {"frame": target.frame, "layer": target.layer, "pixels_changed": rect.get_area()}
+
+
+func _cmd_copy_selection(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "copy_selection", false)
+
+
+func _cmd_move_selection(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "move_selection", true)
+
+
+func _cmd_shift_layer(params: Dictionary) -> Dictionary:
+	return _shift_single_cel(params, "shift_layer", true)
+
+
+func _shift_single_cel(params: Dictionary, command: String, move: bool) -> Dictionary:
+	var target := _target_cel(params)
+	if target.has("error"):
+		return target
+	var result := _prepare_shift(target, params, move, command == "shift_layer")
+	if result.has("error"):
+		return result
+	if result.changed:
+		_commit(target, target.image, command)
+	return {"frame": target.frame, "layer": target.layer, "changed": result.changed}
+
+
+func _prepare_shift(target: Dictionary, params: Dictionary, move: bool, whole: bool) -> Dictionary:
+	var project = api.project.current_project
+	var cel = project.frames[target.frame].cels[target.layer]
+	if project.layers[target.layer].is_locked_in_hierarchy():
+		return _error("Layer %d is locked" % target.layer)
+	if cel.link_set != null and cel.link_set.size() > 1:
+		return _error("Unlink the cel before shifting its pixels")
+	var image: Image = target.image
+	var bounds := Rect2i(Vector2i.ZERO, image.get_size())
+	var source := bounds
+	var destination := Vector2i.ZERO
+	if whole:
+		for key in ["dx", "dy"]:
+			if not _valid_shift_number(params.get(key)):
+				return _error("%s must be an integer from -8192 to 8192" % key)
+		destination = Vector2i(int(params.dx), int(params.dy))
+	else:
+		for key in ["x", "y", "width", "height", "to_x", "to_y"]:
+			if not _valid_shift_number(params.get(key)):
+				return _error("%s must be an integer from -8192 to 8192" % key)
+		source = Rect2i(int(params.x), int(params.y), int(params.width), int(params.height))
+		if not source.has_area() or not bounds.encloses(source):
+			return _error("The source rectangle must fit inside the canvas")
+		destination = Vector2i(int(params.to_x), int(params.to_y))
+	if source.position == destination:
+		return {"changed": false}
+
+	var original: PackedByteArray = image.get_data()
+	_shift_pixels(image, source, destination, move, Color(0, 0, 0, 0))
+	var changed := original != image.get_data()
+	if cel.get_image().is_indexed:
+		var cel_indices: Image = cel.get_image().indices_image
+		var indices := Image.create_empty(bounds.size.x, bounds.size.y, false, Image.FORMAT_R8)
+		indices.blit_rect(cel_indices, Rect2i(Vector2i.ZERO, cel_indices.get_size()), cel.offset)
+		var original_indices := indices.get_data()
+		_shift_pixels(indices, source, destination, move, Color(0, 0, 0, 0))
+		target.indices = indices
+		changed = changed or original_indices != indices.get_data()
+	return {"changed": changed}
+
+
+func _valid_shift_number(value: Variant) -> bool:
+	return (value is int or value is float) and absf(value) <= 8192 and int(value) == value
+
+
+func _shift_pixels(image: Image, source: Rect2i, destination: Vector2i, move: bool, empty: Color) -> void:
+	# Snapshot before clearing to support overlapping source and destination.
+	var copied := image.get_region(source)
+	if move:
+		image.fill_rect(source, empty)
+	image.blit_rect(copied, Rect2i(Vector2i.ZERO, source.size), destination)
+
+
+func _cmd_draw_pixels_in_frames(params: Dictionary) -> Dictionary:
+	return _edit_frames(params, "draw_pixels_in_frames", true)
+
+
+func _cmd_shift_layer_in_frames(params: Dictionary) -> Dictionary:
+	return _edit_frames(params, "shift_layer_in_frames", false)
+
+
+func _edit_frames(params: Dictionary, command: String, draw: bool) -> Dictionary:
+	var project = api.project.current_project
+	var frames = params.get("frames")
+	if not frames is Array or frames.is_empty():
+		return _error("Supply at least one frame")
+	if frames.size() * project.size.x * project.size.y > 32 * 1024 * 1024:
+		return _error("Too many canvas pixels for one frame batch (maximum 32 Mi pixels)")
+	var layer = params.get("layer", project.current_layer)
+	if not _valid_shift_number(layer) or layer < 0 or layer >= project.layers.size():
+		return _error("Invalid layer")
+	if project.layers[int(layer)].is_locked_in_hierarchy():
+		return _error("Layer %d is locked" % int(layer))
+	var seen := {}
+	var edits := []
+	var results := []
+	for entry in frames:
+		if draw and not entry is Dictionary:
+			return _error("Each drawing entry must contain a frame and palette")
+		var frame = entry.get("frame") if draw else entry
+		if not (frame is int or frame is float) or frame < 0 or frame >= project.frames.size() or int(frame) != frame:
+			return _error("Invalid frame: %s" % str(frame))
+		frame = int(frame)
+		if seen.has(frame):
+			return _error("Frame %d occurs more than once" % frame)
+		seen[frame] = true
+		var target := _target_cel({"frame": frame, "layer": layer})
+		if target.has("error"):
+			return target
+		var cel = project.frames[frame].cels[int(layer)]
+		if cel.link_set != null and cel.link_set.size() > 1:
+			return _error("Frame %d has a linked cel. Unlink it before editing selected frames." % frame)
+		var result: Dictionary
+		if draw:
+			var drawing := params.duplicate()
+			drawing.palette = entry.get("palette")
+			result = _prepare_draw(target, drawing)
+		else:
+			result = _prepare_shift(target, params, true, true)
+		if result.has("error"):
+			return _error("Frame %d: %s" % [frame, result.error])
+		result.frame = frame
+		results.append(result)
+		if result.get("changed", result.get("pixels_changed", 0) > 0):
+			edits.append(target)
+	if not edits.is_empty():
+		_commit_edits(edits, command)
+	return {"layer": int(layer), "frames": results}
 
 
 func _cmd_read_pixels(params: Dictionary) -> Dictionary:
@@ -409,6 +575,177 @@ func _cmd_add_frame(params: Dictionary) -> Dictionary:
 	return _cmd_get_project({})
 
 
+func _cmd_get_animation(_params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var timeline = global.animation_timeline
+	var durations := []
+	for frame in project.frames:
+		durations.append(frame.get_duration_in_seconds(project.fps))
+	var tags := []
+	for tag in project.animation_tags:
+		tags.append({"name": tag.name, "first": tag.from - 1, "last": tag.to - 1})
+	var playback := {"playing": timeline.is_animation_running}
+	if timeline.is_animation_running:
+		playback["first"] = timeline.first_frame
+		playback["last"] = timeline.last_frame
+	return {
+		"current_frame": project.current_frame,
+		"fps": project.fps,
+		"durations_seconds": durations,
+		"tags": tags,
+		"onion_skin": global.onion_skinning,
+		"onion_previous": global.onion_skinning_past_rate,
+		"onion_next": global.onion_skinning_future_rate,
+		"playback": playback,
+	}
+
+
+func _valid_frame(project, index: Variant) -> bool:
+	return (index is int or index is float) and index >= 0 and index < project.frames.size() and int(index) == index
+
+
+func _cmd_duplicate_frame(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var frame = params.get("frame", project.current_frame)
+	var after = params.get("after", frame)
+	if not _valid_frame(project, frame) or not _valid_frame(project, after):
+		return _error("Frame and insertion point must be existing frame indices")
+	# Copy every cel independently even for layers that normally create linked cels.
+	var linked_layers := []
+	for layer in project.layers:
+		if layer.new_cels_linked:
+			linked_layers.append(layer)
+			layer.new_cels_linked = false
+	global.animation_timeline.copy_frames([int(frame)], int(after), false)
+	for layer in linked_layers:
+		layer.new_cels_linked = true
+	return _cmd_get_animation({})
+
+
+func _cmd_set_frame_duration(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var index = params.get("frame", project.current_frame)
+	var seconds = params.get("seconds")
+	if not _valid_frame(project, index):
+		return _error("Frame does not exist")
+	if not (seconds is int or seconds is float) or not (seconds >= 0.01 and seconds <= 60.0):
+		return _error("Duration must be between 0.01 and 60 seconds")
+	var frame = project.frames[int(index)]
+	var duration: float = seconds * project.fps
+	if not is_equal_approx(frame.duration, duration):
+		var history = project.undo_redo
+		history.create_action("MCP set_frame_duration")
+		history.add_do_property(frame, "duration", duration)
+		history.add_undo_property(frame, "duration", frame.duration)
+		history.add_do_method(global.undo_or_redo.bind(false))
+		history.add_undo_method(global.undo_or_redo.bind(true))
+		history.commit_action()
+	return _cmd_get_animation({})
+
+
+func _cmd_set_animation_tag(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var name := str(params.get("name", "")).strip_edges()
+	var first = params.get("first")
+	var last = params.get("last")
+	if name.is_empty() or not _valid_frame(project, first) or not _valid_frame(project, last) or first > last:
+		return _error("Supply a tag name and an inclusive range of existing frames")
+	var existing := _tags_named(project, name)
+	if existing.size() > 1:
+		return _error("Multiple tags have the name '%s'" % name)
+	var tags = project.animation_tags.duplicate()
+	if existing.is_empty():
+		tags.append(AnimationTag.new(name, Color.SKY_BLUE, int(first) + 1, int(last) + 1))
+	else:
+		var before = existing[0]
+		if before.from == int(first) + 1 and before.to == int(last) + 1:
+			return _cmd_get_animation({})
+		var updated = before.duplicate()
+		updated.from = int(first) + 1
+		updated.to = int(last) + 1
+		tags[tags.find(before)] = updated
+	var history = project.undo_redo
+	history.create_action("MCP set_animation_tag")
+	history.add_do_property(project, "animation_tags", tags)
+	history.add_undo_property(project, "animation_tags", project.animation_tags)
+	history.add_do_method(global.undo_or_redo.bind(false))
+	history.add_undo_method(global.undo_or_redo.bind(true))
+	history.commit_action()
+	return _cmd_get_animation({})
+
+
+func _tags_named(project, name: String) -> Array:
+	return project.animation_tags.filter(func(tag): return tag.name == name)
+
+
+## The user's own onion-skin frame counts, kept while MCP shows only the previous frame.
+var _onion_saved: Array = []
+
+
+func _cmd_set_onion_skin(params: Dictionary) -> Dictionary:
+	var enabled = params.get("enabled")
+	if not enabled is bool:
+		return _error("enabled must be a boolean")
+	var global = api.general.get_global()
+	var timeline = global.animation_timeline
+	var past = timeline.get_node("%PastOnionSkinning")
+	var future = timeline.get_node("%FutureOnionSkinning")
+	if enabled:
+		if _onion_saved.is_empty():
+			_onion_saved = [past.value, future.value]
+		past.value = 1
+		future.value = 0
+	elif not _onion_saved.is_empty():
+		past.value = _onion_saved[0]
+		future.value = _onion_saved[1]
+		_onion_saved = []
+	if global.onion_skinning != enabled:
+		timeline._on_OnionSkinning_pressed()
+	else:
+		global.canvas.refresh_onion()
+	return _cmd_get_animation({})
+
+
+func _cmd_play_animation(params: Dictionary) -> Dictionary:
+	var global = api.general.get_global()
+	var project = global.current_project
+	var timeline = global.animation_timeline
+	var play = params.get("play")
+	if not play is bool:
+		return _error("play must be a boolean")
+	var first := 0
+	var last: int = project.frames.size() - 1
+	if play and params.has("tag"):
+		var tags := _tags_named(project, str(params.tag))
+		if tags.size() != 1:
+			return _error("Expected one tag named '%s'" % params.tag)
+		first = tags[0].from - 1
+		last = tags[0].to - 1
+	if play and first >= last:
+		return _error("Playback requires at least two frames")
+	timeline.play_forward.button_pressed = false
+	timeline.play_backwards.button_pressed = false
+	if not play:
+		timeline.animation_timer.stop()
+		timeline.is_animation_running = false
+		return _cmd_get_animation({})
+	project.selected_cels.clear()
+	project.change_cel(first, -1)
+
+	# Start the native timer and buttons without restricting playback to an overlapping tag.
+	var filter_tags: bool = global.play_only_tags
+	global.play_only_tags = false
+	timeline.play_forward.button_pressed = true
+	global.play_only_tags = filter_tags
+	timeline.first_frame = first
+	timeline.last_frame = last
+	return _cmd_get_animation({})
+
+
 func _cmd_select_cel(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
 	var frame := int(params.get("frame", project.current_frame))
@@ -464,8 +801,17 @@ func _cmd_save_project(params: Dictionary) -> Dictionary:
 	var path := str(params.get("path", project.save_path))
 	if path.is_empty():
 		return _error("The project has never been saved, so a path is required")
+	var checked := file_paths.check(path)
+	if checked.has("error"):
+		return checked
+	path = checked.path
 	if not path.is_absolute_path() or path.get_extension().to_lower() != "pxo":
 		return _error("path must be an absolute path ending in .pxo")
+	# Pixelorama writes to a temporary sibling when replacing an existing project.
+	if FileAccess.file_exists(path):
+		var temporary := file_paths.check(path + "1")
+		if temporary.has("error"):
+			return temporary
 	if not api.import.open_save_autoload().save_pxo_file(path, false):
 		return _error("Saving failed")
 	return {"path": path}
@@ -473,7 +819,10 @@ func _cmd_save_project(params: Dictionary) -> Dictionary:
 
 func _cmd_export_png(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
-	var path := str(params.get("path", ""))
+	var checked := file_paths.check(str(params.get("path", "")))
+	if checked.has("error"):
+		return checked
+	var path: String = checked.path
 	if not path.is_absolute_path() or path.get_extension().to_lower() != "png":
 		return _error("path must be an absolute path ending in .png")
 
@@ -533,18 +882,42 @@ func _target_cel(params: Dictionary, for_writing := true) -> Dictionary:
 	return {"frame": frame, "layer": layer, "image": image}
 
 
-## Writes a canvas-sized image back into the cel as one undo step.
-## The cel is shrunk to the used area and its offset set, like Pixelorama's own tools.
-func _commit(target: Dictionary, image: Image) -> void:
+## A single action can update one or more canvas-sized cel images.
+func _commit(target: Dictionary, image: Image, command: String) -> void:
+	target.image = image
+	_commit_edits([target], command)
+
+
+func _commit_edits(edits: Array, command: String) -> void:
 	var project = api.project.current_project
-	var cel = project.frames[target.frame].cels[target.layer]
-	# serialize_cel_undo_data wants a typed Array[BaseCel]; copy the type from frame.cels.
-	var cels: Array = project.frames[target.frame].cels.duplicate()
+	var first: Dictionary = edits[0]
+	var cels: Array = project.frames[first.frame].cels.duplicate()
 	cels.clear()
-	cels.append(cel)
+	for edit in edits:
+		cels.append(project.frames[edit.frame].cels[edit.layer])
+
 	var undo_data := {}
 	project.serialize_cel_undo_data(cels, undo_data)
+	for i in edits.size():
+		_write_cel(project, cels[i], edits[i])
 
+	var redo_data := {}
+	project.serialize_cel_undo_data(cels, redo_data)
+	var history = project.undo_redo
+	var layer_name: String = project.layers[first.layer].name
+	history.create_action("MCP %s: %s" % [command, layer_name])
+	project.deserialize_cel_undo_data(redo_data, undo_data)
+	for cel in cels:
+		history.add_do_method(cel.update_texture)
+		history.add_undo_method(cel.update_texture)
+	var global = api.general.get_global()
+	history.add_do_method(global.undo_or_redo.bind(false))
+	history.add_undo_method(global.undo_or_redo.bind(true))
+	history.commit_action()
+
+
+func _write_cel(project, cel, target: Dictionary) -> void:
+	var image: Image = target.image
 	var used := image.get_used_rect()
 	var new_offset := Vector2i.ZERO
 	var part: Image
@@ -554,19 +927,14 @@ func _commit(target: Dictionary, image: Image) -> void:
 		part = image.get_region(used)
 		new_offset = used.position
 	part.convert(project.get_image_format())
-	cel.get_image().copy_from_custom(part)
+	var cel_image = cel.get_image()
+	if target.has("indices"):
+		cel_image.copy_from(part)
+		var indices: Image = target.indices
+		cel_image.indices_image.copy_from(indices.get_region(Rect2i(new_offset, part.get_size())))
+	else:
+		cel_image.copy_from_custom(part)
 	cel.change_offset(new_offset)
-
-	var redo_data := {}
-	project.serialize_cel_undo_data(cels, redo_data)
-	project.undo_redo.create_action("MCP draw")
-	project.deserialize_cel_undo_data(redo_data, undo_data)
-	project.undo_redo.add_do_method(cel.update_texture)
-	project.undo_redo.add_undo_method(cel.update_texture)
-	var global = api.general.get_global()
-	project.undo_redo.add_do_method(global.undo_or_redo.bind(false, target.frame, target.layer))
-	project.undo_redo.add_undo_method(global.undo_or_redo.bind(true, target.frame, target.layer))
-	project.undo_redo.commit_action()
 
 
 func _blend_frame(project, frame: int) -> Image:
