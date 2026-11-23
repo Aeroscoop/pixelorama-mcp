@@ -79,7 +79,7 @@ Wat er niet is: vrije selecties, penselen, lijnen, van tabblad wisselen, palette
 ## Bekende valkuilen
 - **"0 pixels veranderd" in een nieuwe laag:** oude versie van de koppeling. Sinds Pixelorama 1.2 groeit een laag mee met de inhoud; onze versie regelt dat.
 - **Nieuwe tools zie je niet:** start de Claude-app, Claude Code of Codex opnieuw na een update van de koppeling.
-- **`set_color_mode`** gebruikt een interne functie van Pixelorama en kan breken bij een nieuwe Pixelorama-versie.
+- **Interne functies van Pixelorama:** `set_color_mode`, `set_drawing_settings` en het uitschakelen via de opdrachtregel gebruiken functies die Pixelorama niet officieel aanbiedt. Ze kunnen breken bij een nieuwe Pixelorama-versie. Test na een update eerst met `npm run test:pixelorama`.
 - **Schermafdrukken (computer use) van Pixelorama werken niet**: gebruik `get_image`.
 - **Veiligheid:** de koppeling luistert alleen op 127.0.0.1, maar elk programma op deze pc kan verbinden, en openen/bewaren mag elk pad. Zet de poort nooit open naar internet (geen tunnel).
 

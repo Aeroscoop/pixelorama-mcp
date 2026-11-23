@@ -1,4 +1,5 @@
 // Manage only the ZIP and configuration key for our Pixelorama extension.
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
@@ -145,6 +146,22 @@ function sameProfile(path) {
   return canonical(path) === canonical(profile);
 }
 
+// true, false, or null when the process list cannot be read.
+function pixeloramaRunning() {
+  if (process.env.PIXELORAMA_MCP_ASSUME_CLOSED === "1") return false;
+  try {
+    if (process.platform === "win32") {
+      const tasks = execFileSync("tasklist", ["/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+      return /^"pixelorama[^"]*\.exe"/im.test(tasks);
+    }
+    // comm is the executable name (Linux truncates it to 15 characters, macOS gives the full path).
+    const names = execFileSync("ps", ["-A", "-o", "comm="], { encoding: "utf8" });
+    return names.split("\n").some((name) => /(^|\/)pixelorama/i.test(name.trim()));
+  } catch {
+    return null;
+  }
+}
+
 async function status() {
   const on_disk = buildInfo(read(zipPath));
   const enabled = extensionPreference(read(configPath, "utf8") ?? "");
@@ -183,9 +200,13 @@ try {
         // The extension drops its listener on the next frame after acknowledging the command.
         for (let attempt = 0; attempt < 10 && (await request("extension_status")); attempt++) await delay(80);
       } else {
-        const heartbeat = statSync(join(profile, ".running"), { throwIfNoEntry: false });
-        if (live?.error === "Unknown method: extension_status" || (heartbeat && Date.now() - heartbeat.mtimeMs < 8000)) {
-          throw new Error("Save your work and close Pixelorama before changing this preference. Then rerun the command.");
+        // Pixelorama keeps its preferences in memory and writes them back on exit,
+        // so a change made while it runs would be lost.
+        const running = live?.error === "Unknown method: extension_status" || pixeloramaRunning();
+        if (running !== false) {
+          throw new Error(running === null
+            ? "Cannot check whether Pixelorama is running. Close Pixelorama and rerun with PIXELORAMA_MCP_ASSUME_CLOSED=1."
+            : "Save your work and close Pixelorama before changing this preference. Then rerun the command.");
         }
         replaceFile(configPath, extensionPreference(config, enable));
       }
