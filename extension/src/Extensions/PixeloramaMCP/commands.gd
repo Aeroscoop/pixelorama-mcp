@@ -12,8 +12,6 @@ const MAX_READ_PIXELS := 128 * 128
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
 var api: Node
-## The user's own onion-skin frame counts, kept while MCP shows only the previous frame.
-var _onion_saved: Array = []
 
 
 func _init(extensions_api: Node) -> void:
@@ -533,6 +531,10 @@ func _cmd_set_animation_tag(params: Dictionary) -> Dictionary:
 
 func _tags_named(project, name: String) -> Array:
 	return project.animation_tags.filter(func(tag): return tag.name == name)
+
+
+## The user's own onion-skin frame counts, kept while MCP shows only the previous frame.
+var _onion_saved: Array = []
 
 
 func _cmd_set_onion_skin(params: Dictionary) -> Dictionary:
