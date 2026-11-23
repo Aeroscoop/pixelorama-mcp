@@ -11,7 +11,10 @@ const MAX_READ_PIXELS := 128 * 128
 ## Characters used to label colors in read_pixels. "." is reserved for transparent.
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
+const FilePaths := preload("file_paths.gd")
+
 var api: Node
+var file_paths := FilePaths.new()
 
 
 func _init(extensions_api: Node) -> void:
@@ -41,6 +44,7 @@ func _cmd_get_project(_params: Dictionary) -> Dictionary:
 		"current_frame": project.current_frame,
 		"current_layer": project.current_layer,
 		"save_path": project.save_path,
+		"path_check": file_paths.status(),
 		"color_mode": "indexed" if project.is_indexed() else "rgba",
 		"palette": _current_palette_name(),
 		"open_projects": open_projects,
@@ -160,7 +164,10 @@ func _cmd_new_project(params: Dictionary) -> Dictionary:
 
 
 func _cmd_open_file(params: Dictionary) -> Dictionary:
-	var path := str(params.get("path", ""))
+	var checked := file_paths.check(str(params.get("path", "")))
+	if checked.has("error"):
+		return checked
+	var path: String = checked.path
 	if not FileAccess.file_exists(path):
 		return _error("File not found: %s" % path)
 	var open_save = api.import.open_save_autoload()
@@ -481,8 +488,17 @@ func _cmd_save_project(params: Dictionary) -> Dictionary:
 	var path := str(params.get("path", project.save_path))
 	if path.is_empty():
 		return _error("The project has never been saved, so a path is required")
+	var checked := file_paths.check(path)
+	if checked.has("error"):
+		return checked
+	path = checked.path
 	if not path.is_absolute_path() or path.get_extension().to_lower() != "pxo":
 		return _error("path must be an absolute path ending in .pxo")
+	# Pixelorama writes to a temporary sibling when replacing an existing project.
+	if FileAccess.file_exists(path):
+		var temporary := file_paths.check(path + "1")
+		if temporary.has("error"):
+			return temporary
 	if not api.import.open_save_autoload().save_pxo_file(path, false):
 		return _error("Saving failed")
 	return {"path": path}
@@ -490,7 +506,10 @@ func _cmd_save_project(params: Dictionary) -> Dictionary:
 
 func _cmd_export_png(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
-	var path := str(params.get("path", ""))
+	var checked := file_paths.check(str(params.get("path", "")))
+	if checked.has("error"):
+		return checked
+	var path: String = checked.path
 	if not path.is_absolute_path() or path.get_extension().to_lower() != "png":
 		return _error("path must be an absolute path ending in .png")
 
