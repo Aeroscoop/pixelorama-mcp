@@ -480,8 +480,31 @@ func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 	if not _int_in_range(width, 1, scaled.x) or not _int_in_range(height, 1, 4000):
 		return _error("Use a phone width of 1–%d px (the scaled canvas) and a height of 1–4000 px" % scaled.x)
 	var scene_height := maxi(layout.min_scene_height, int(height) - layout.chrome_height)
+	var visible_height := mini(scaled.y, scene_height)
 	var origin := Vector2i(floori((scaled.x - width) / 2.0), maxi(0, scaled.y - scene_height))
-	var crop := Rect2i(origin, Vector2i(int(width), mini(scaled.y, scene_height)))
+	# Optional frame (in canvas pixels): everything that matters must be visible.
+	# The crop then centers on the frame instead of keeping the bottom fixed.
+	var frame_keys := ["frame_x", "frame_y", "frame_width", "frame_height"]
+	var frame_given := frame_keys.filter(func(key): return params.has(key))
+	var frame := {}
+	if not frame_given.is_empty():
+		if frame_given.size() != 4:
+			return _error("Pass frame_x, frame_y, frame_width and frame_height together")
+		var area := Rect2i(int(params.get("frame_x", -1)), int(params.get("frame_y", -1)), int(params.get("frame_width", 0)), int(params.get("frame_height", 0)))
+		for key in frame_keys:
+			if not _int_in_range(params[key], 0, 4096):
+				return _error("%s must be a whole number" % key)
+		if not area.has_area() or not Rect2i(Vector2i.ZERO, world).encloses(area):
+			return _error("The frame must lie inside the %d × %d canvas" % [world.x, world.y])
+		var shown := Rect2i(area.position * layout.scale, area.size * layout.scale)
+		if shown.size.x > int(width) or shown.size.y > visible_height:
+			return _error("The frame (%d × %d px on screen) does not fit a phone scene of %d × %d px" % [shown.size.x, shown.size.y, int(width), visible_height])
+		var center := shown.get_center()
+		origin = Vector2i(
+			clampi(center.x - floori(width / 2.0), 0, scaled.x - int(width)),
+			clampi(center.y - floori(visible_height / 2.0), 0, scaled.y - visible_height))
+		frame = {"x": area.position.x, "y": area.position.y, "width": area.size.x, "height": area.size.y}
+	var crop := Rect2i(origin, Vector2i(int(width), visible_height))
 	var preview := Image.create_empty(2 * int(width), scene_height, false, Image.FORMAT_RGBA8)
 	for i in 2:
 		var image := _blend_frame(project, int(day if i == 0 else night))
@@ -497,6 +520,7 @@ func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 		"crop": {"x": origin.x, "y": origin.y, "width": crop.size.x, "height": crop.size.y},
 		"pixel_scale": layout.scale,
 		"layout": layout,
+		"frame": frame if not frame.is_empty() else null,
 	}
 
 
