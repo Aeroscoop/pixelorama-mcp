@@ -8,7 +8,7 @@ extends RefCounted
 
 const LAYER_TYPES := ["pixel", "group", "3d", "tilemap", "audio"]
 const MAX_READ_PIXELS := 128 * 128
-# Geometry from Starlite demo/style.css: .wereld, .wereld-vlak and --nav-h.
+# Default preview layout, from Starlite demo/style.css: .wereld, .wereld-vlak and --nav-h.
 const NESTAR_WORLD := Vector2i(112, 216)
 const NESTAR_SCALE := 4
 const NESTAR_PHONE_CHROME := 68 + 64
@@ -448,21 +448,38 @@ func _cmd_get_image(params: Dictionary) -> Dictionary:
 	return {"png": Marshalls.raw_to_base64(image.save_png_to_buffer()), "frame": frame, "scale": scale}
 
 
+## Compares a day and a night frame the way a phone shows the world: scaled up,
+## centered horizontally and anchored to the bottom. Defaults are Nestar's demo;
+## every value can be overridden for another layout or another project.
 func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 	var project = api.project.current_project
-	if Vector2i(project.size) != NESTAR_WORLD:
-		return _error("Nestar preview requires a 112 × 216 canvas")
+	var layout := {
+		"canvas_width": NESTAR_WORLD.x, "canvas_height": NESTAR_WORLD.y, "scale": NESTAR_SCALE,
+		"chrome_height": NESTAR_PHONE_CHROME, "min_scene_height": NESTAR_MIN_SCENE_HEIGHT,
+	}
+	var limits := {
+		"canvas_width": [1, 4096], "canvas_height": [1, 4096], "scale": [1, 16],
+		"chrome_height": [0, 1000], "min_scene_height": [1, 4000],
+	}
+	for key in layout:
+		var value = params.get(key, layout[key])
+		if not _int_in_range(value, limits[key][0], limits[key][1]):
+			return _error("%s must be an integer from %d to %d" % [key, limits[key][0], limits[key][1]])
+		layout[key] = int(value)
+	var world := Vector2i(layout.canvas_width, layout.canvas_height)
+	if Vector2i(project.size) != world:
+		return _error("This preview expects a %d × %d canvas; the project is %d × %d. Pass canvas_width and canvas_height for another size." % [world.x, world.y, project.size.x, project.size.y])
 	var day = params.get("day_frame")
 	var night = params.get("night_frame")
 	for index in [day, night]:
 		if not _int_in_range(index, 0, project.frames.size() - 1):
 			return _error("Select existing day and night frames")
-	var width = params.get("width", 390)
+	var scaled: Vector2i = world * layout.scale
+	var width = params.get("width", mini(390, scaled.x))
 	var height = params.get("height", 844)
-	if not _int_in_range(width, 240, 448) or not _int_in_range(height, 480, 1000):
-		return _error("Use a phone width of 240–448 px and height of 480–1000 px")
-	var scaled := NESTAR_WORLD * NESTAR_SCALE
-	var scene_height := maxi(NESTAR_MIN_SCENE_HEIGHT, int(height) - NESTAR_PHONE_CHROME)
+	if not _int_in_range(width, 1, scaled.x) or not _int_in_range(height, 1, 4000):
+		return _error("Use a phone width of 1–%d px (the scaled canvas) and a height of 1–4000 px" % scaled.x)
+	var scene_height := maxi(layout.min_scene_height, int(height) - layout.chrome_height)
 	var origin := Vector2i(floori((scaled.x - width) / 2.0), maxi(0, scaled.y - scene_height))
 	var crop := Rect2i(origin, Vector2i(int(width), mini(scaled.y, scene_height)))
 	var preview := Image.create_empty(2 * int(width), scene_height, false, Image.FORMAT_RGBA8)
@@ -478,7 +495,8 @@ func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 		"phone": {"width": int(width), "height": int(height)},
 		"per_panel": {"width": int(width), "height": scene_height},
 		"crop": {"x": origin.x, "y": origin.y, "width": crop.size.x, "height": crop.size.y},
-		"pixel_scale": NESTAR_SCALE,
+		"pixel_scale": layout.scale,
+		"layout": layout,
 	}
 
 
