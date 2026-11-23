@@ -12,6 +12,8 @@ const MAX_READ_PIXELS := 128 * 128
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
 var api: Node
+## The user's own onion-skin frame counts, kept while MCP shows only the previous frame.
+var _onion_saved: Array = []
 
 
 func _init(extensions_api: Node) -> void:
@@ -539,9 +541,17 @@ func _cmd_set_onion_skin(params: Dictionary) -> Dictionary:
 		return _error("enabled must be a boolean")
 	var global = api.general.get_global()
 	var timeline = global.animation_timeline
+	var past = timeline.get_node("%PastOnionSkinning")
+	var future = timeline.get_node("%FutureOnionSkinning")
 	if enabled:
-		timeline.get_node("%PastOnionSkinning").value = 1
-		timeline.get_node("%FutureOnionSkinning").value = 0
+		if _onion_saved.is_empty():
+			_onion_saved = [past.value, future.value]
+		past.value = 1
+		future.value = 0
+	elif not _onion_saved.is_empty():
+		past.value = _onion_saved[0]
+		future.value = _onion_saved[1]
+		_onion_saved = []
 	if global.onion_skinning != enabled:
 		timeline._on_OnionSkinning_pressed()
 	else:

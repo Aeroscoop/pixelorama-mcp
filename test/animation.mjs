@@ -23,12 +23,15 @@ await withPixelorama(async ({ call }) => {
   try {
     const without = await conn.request("get_image", { frame: 1, scale: 1 });
     await call("select_cel", { frame: 1, layer: 0 });
+    const own = await call("get_animation");
     const onion = await call("set_onion_skin", { enabled: true });
     assert.equal(onion.onion_skin, true);
     assert.equal(onion.onion_previous, 1);
     assert.equal(onion.onion_next, 0);
     assert.deepEqual(await conn.request("get_image", { frame: 1, scale: 1 }), without);
-    await call("set_onion_skin", { enabled: false });
+    const off = await call("set_onion_skin", { enabled: false });
+    assert.equal(off.onion_skin, false);
+    assert.deepEqual([off.onion_previous, off.onion_next], [own.onion_previous, own.onion_next]);
   } finally {
     conn.close();
   }
@@ -44,4 +47,4 @@ await withPixelorama(async ({ call }) => {
   assert.deepEqual([...seen], [0, 1]);
   assert.equal((await call("play_animation", { play: false })).playback.playing, false);
 });
-console.log("Pixelorama 1.2.4: blink-frame duplication, tag, timing, onion skin and native playback passed.");
+console.log("Pixelorama 1.2.4: blink-frame duplication, tag, timing, onion skin (own settings restored) and native playback passed.");

@@ -301,7 +301,7 @@ server.registerTool(
 server.registerTool(
   "set_onion_skin",
   {
-    description: "Show or hide a translucent copy of the previous frame in the editing view.",
+    description: "Show or hide a translucent copy of the previous frame in the editing view. Turning it off restores the user's own onion-skin frame counts.",
     inputSchema: { enabled: z.boolean() },
   },
   async (args) => json(await pixelorama.request("set_onion_skin", args)),
