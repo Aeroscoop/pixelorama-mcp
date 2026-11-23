@@ -45,6 +45,10 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `rename_layer` | laag hernoemen | |
 | `select_cel` | actieve laag/frame kiezen | |
 | `add_frame` | frame toevoegen | |
+| `duplicate_frame` | kopieer een frame naar zelfstandige cels | standaard direct na het bronframe |
+| `get_animation`, `set_frame_duration` | lees de tijdlijn en stel de tijd per frame in | duur in seconden |
+| `set_animation_tag`, `play_animation` | geef een reeks een naam en speel die af | begin- en eindframe tellen vanaf 0 |
+| `set_onion_skin` | toon het vorige frame doorschijnend | alleen in de editorweergave; uitzetten zet de eigen instellingen van de gebruiker terug |
 | `new_project` | nieuw project in een nieuw tabblad | begint met het laatst gekozen palet |
 | `open_file` | `.pxo` of afbeelding openen | volledig pad; opent een nieuw tabblad |
 | `save_project` | bewaren als `.pxo` | alleen na ja |
