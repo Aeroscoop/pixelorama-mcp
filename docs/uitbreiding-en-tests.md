@@ -1,6 +1,6 @@
 # Pixelorama MCP uitbreidingsgids
 
-Stand 23 november 2026. #11 t/m #15 en #17 staan op `main`. #16, #18 en #19 (Nestar) staan nog open: hun Nestar-tests moeten nog draaien met een Starlite-checkout. De opdrachten van die drie horen bij de bijbehorende PR.
+Stand 27 november 2026. #11 t/m #17, #19 en #26 (het werk van #18) staan op `main`. Open: de handtest in Indexed-kleurmodus op de laptop (zie onderaan) en #27 (standaard telefoonuitsnede volgt de nieuwe Nestar-indeling niet).
 
 ## Installeren en testen
 
@@ -46,6 +46,8 @@ Draai vervolgbestanden afzonderlijk met `node test/<naam>.mjs` en hetzelfde `PIX
 22 november: de negen suites slaagden met alle wijzigingen samen, headless op Linux. De achtergrondpixels kwamen voor dag en nacht overeen met de demo-uitsnede op 390 × 844 en 320 × 844. De referentielagen bleven na bewaren en openen als groep beschikbaar. De Nestar-tekenroutine gaf voor het geëxporteerde pakje dezelfde posities, kleuren en lege pixels terug.
 
 23 november, na de review: de zes algemene suites en de twee nieuwe (`phone-layout`, `references-custom`) slaagden opnieuw met Pixelorama 1.2.4 headless. De drie Nestar-suites zijn na de laatste wijzigingen nog niet opnieuw gedraaid.
+
+27 november, na de merge van #16, #19 en #26: alle elf suites slaagden op `main` met Pixelorama 1.2.4 headless. `nestar-references`, `references-custom` en `nestar-export` slagen ook met de huidige `main` van Starlite. `phone-preview` slaagt alleen met de Starlite-checkout van 20-11: sinds Starlite PR #379 staat de wereld niet meer vast aan de onderkant (#27).
 
 Nog open voor een live controle op de laptop:
 - Indexed-kleurmodus bij `move_selection`, `copy_selection` en `shift_layer` (headless crasht Pixelorama op `set_color_mode`, dus de cloudtest kan dit niet).
