@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -239,6 +240,24 @@ server.registerTool(
   async (args) => {
     const { png, ...geometry } = await pixelorama.request<{ png: string }>("preview_nestar_phone", args);
     return { content: [...json(geometry).content, { type: "image" as const, data: png, mimeType: "image/png" }] };
+  },
+);
+
+server.registerTool(
+  "load_nestar_references",
+  {
+    description: "Load or refresh locked reference layers in a group, for a day and a night frame of an RGBA sketch. Defaults to the four Nestar demo assets on 112 × 216; the data file can set another canvas, other references and names.",
+    inputSchema: {
+      day_frame: z.number().int().min(0),
+      night_frame: z.number().int().min(0),
+      data_path: z.string().optional().describe("Reference JSON file; default NESTAR_REFERENCE_DATA"),
+    },
+  },
+  async ({ data_path, ...args }) => {
+    const path = data_path ? absolute(data_path) : process.env.NESTAR_REFERENCE_DATA;
+    if (!path) throw new Error("Pass data_path or set NESTAR_REFERENCE_DATA to a reference JSON file");
+    const data: unknown = JSON.parse(await readFile(path, "utf8"));
+    return json(await pixelorama.request("load_nestar_references", { ...args, data }));
   },
 );
 

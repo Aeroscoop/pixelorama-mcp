@@ -45,6 +45,35 @@ Start Pixelorama en vraag via MCP `get_project` op. Configureer de agent als lok
 
 Beide instellingen gelden voor de open editor. Ze wijzigen geen projectpixels en komen niet in exports of in de ongedaan-maakgeschiedenis.
 
+### Nestar-referenties laden
+
+Maak een RGBA-project van 112 × 216 met een frame voor dag en een voor nacht. Maak referentiedata uit een vertrouwde lokale checkout van `Aeroscoop/starlite`:
+
+```sh
+node scripts/export-nestar-references.mjs /pad/naar/starlite/demo > /pad/naar/nestar-references.json
+```
+
+Zet `NESTAR_REFERENCE_DATA` op dat JSON-pad in de omgeving van de MCP-server, of geef het pad per keer mee als `data_path`. Gebruik daarna `load_nestar_references` met `day_frame` en `night_frame`. De opdracht maakt een groep met vier vergrendelde pixellagen aan of ververst de bestaande lagen. Bij verversen blijven hun namen, ogen en groepsindeling behouden. Gebruik `set_layer_visibility` voor het oog van een referentie of de hele groep.
+
+De bron is een momentopname van Pip in rust, een sterrenpot die voor 70% gevuld is, en een brief boven het pakje. De pot gebruikt de lichte en donkere weergave van de demo. De brievenbus heeft in deze demo geen eigen sprite. Gebruik de referenties om die in een eigen schetslaag te plaatsen.
+
+#### Andere referenties of een ander project
+
+Het databestand bepaalt wat er geladen wordt. Zonder extra velden is dat Nestar: vier lagen op 112 × 216. Voor iets anders zet je in hetzelfde bestand:
+
+```json
+{
+  "version": 1,
+  "canvas": { "width": 16, "height": 12 },
+  "group": "Schetsen",
+  "names": { "boom": "Boom (ref)" },
+  "day":   { "boom": { "x": 1, "y": 2, "width": 2, "height": 3, "rgba": "<base64>" } },
+  "night": { "boom": { "x": 1, "y": 2, "width": 2, "height": 3, "rgba": "<base64>" } }
+}
+```
+
+`day` en `night` hebben dezelfde namen (1 tot 16). `rgba` is de pixeldata van links boven naar rechts onder, vier bytes per pixel, in base64. Een naam zonder `names`-regel wordt de laagnaam met een hoofdletter. Een project heeft één referentiegroep; wil je een andere set laden, verwijder dan eerst de groep.
+
 ### Herhaalbare test
 
 Pak de officiële [Linux-release van Pixelorama 1.2.4](https://github.com/Orama-Interactive/Pixelorama/releases/tag/v1.2.4) uit. Bouw de uitbreiding en geef het volledige pad op. Houd poort 7651 vrij voor de test.

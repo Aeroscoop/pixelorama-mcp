@@ -8,6 +8,7 @@ extends RefCounted
 
 const LAYER_TYPES := ["pixel", "group", "3d", "tilemap", "audio"]
 const MAX_READ_PIXELS := 128 * 128
+const NestarReferences := preload("nestar_references.gd")
 # Default preview layout, from Starlite demo/style.css: .wereld, .wereld-vlak and --nav-h.
 const NESTAR_WORLD := Vector2i(112, 216)
 const NESTAR_SCALE := 4
@@ -525,6 +526,15 @@ func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
 		"layout": layout,
 		"frame": frame if not frame.is_empty() else null,
 	}
+
+
+func _cmd_load_nestar_references(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	var day = params.get("day_frame")
+	var night = params.get("night_frame")
+	if not _int_in_range(day, 0, project.frames.size() - 1) or not _int_in_range(night, 0, project.frames.size() - 1) or day == night:
+		return _error("Select two different existing frames for day and night")
+	return NestarReferences.load_into(project, params.get("data"), int(day), int(night))
 
 
 func _int_in_range(value: Variant, minimum: int, maximum: int) -> bool:

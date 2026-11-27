@@ -34,7 +34,7 @@ export async function withPixelorama(run, prepare = async () => {}) {
     port.listen(7651, "127.0.0.1");
     await once(port, "listening");
     await new Promise((ok, fail) => port.close((err) => err ? fail(err) : ok()));
-    await prepare({ cli, work, profile });
+    const serverEnv = await prepare({ cli, work, profile });
     cli("install");
     cli("enable");
     editor = spawn(executable, ["--headless"], {
@@ -54,7 +54,7 @@ export async function withPixelorama(run, prepare = async () => {}) {
     } while (installed.restart_required);
     assert.equal(installed.editor_version, "v1.2.4-stable");
     await client.connect(new StdioClientTransport({
-      command: process.execPath, args: ["dist/index.js"], env: { PIXELORAMA_MCP_PORT: "7651" },
+      command: process.execPath, args: ["dist/index.js"], env: { PIXELORAMA_MCP_PORT: "7651", ...serverEnv },
     }));
     const rawCall = async (name, args = {}) => {
       const result = await client.callTool({ name, arguments: args });
