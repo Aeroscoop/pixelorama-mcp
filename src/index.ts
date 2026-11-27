@@ -217,6 +217,32 @@ server.registerTool(
 );
 
 server.registerTool(
+  "preview_nestar_phone",
+  {
+    description: "Compare day (left) and night (right) frames as a phone shows them: scaled up, centered and bottom-aligned. Defaults are the Nestar demo (112 × 216 canvas, 4×, 390 × 844 phone); override the layout for another size or project, and pass a frame (frame_x, frame_y, frame_width, frame_height) for a world whose bottom is not fixed.",
+    inputSchema: {
+      day_frame: z.number().int().min(0),
+      night_frame: z.number().int().min(0),
+      width: z.number().int().min(1).optional().describe("Phone width in CSS px, default 390 (at most the scaled canvas)"),
+      height: z.number().int().min(1).max(4000).optional().describe("Phone height in CSS px, default 844"),
+      canvas_width: z.number().int().min(1).max(4096).optional().describe("Expected canvas width, default 112"),
+      canvas_height: z.number().int().min(1).max(4096).optional().describe("Expected canvas height, default 216"),
+      scale: z.number().int().min(1).max(16).optional().describe("CSS px per canvas pixel, default 4"),
+      chrome_height: z.number().int().min(0).max(1000).optional().describe("Phone height taken by navigation and margins, default 132"),
+      min_scene_height: z.number().int().min(1).max(4000).optional().describe("Smallest visible scene height, default 480"),
+      frame_x: z.number().int().min(0).optional().describe("Frame left edge in canvas pixels. With a frame the crop centers on it instead of keeping the bottom fixed"),
+      frame_y: z.number().int().min(0).optional().describe("Frame top edge in canvas pixels"),
+      frame_width: z.number().int().min(1).optional().describe("Frame width in canvas pixels"),
+      frame_height: z.number().int().min(1).optional().describe("Frame height in canvas pixels"),
+    },
+  },
+  async (args) => {
+    const { png, ...geometry } = await pixelorama.request<{ png: string }>("preview_nestar_phone", args);
+    return { content: [...json(geometry).content, { type: "image" as const, data: png, mimeType: "image/png" }] };
+  },
+);
+
+server.registerTool(
   "add_layer",
   {
     description: "Add a pixel layer. By default it goes on top of all layers.",

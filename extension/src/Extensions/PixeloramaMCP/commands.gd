@@ -8,6 +8,11 @@ extends RefCounted
 
 const LAYER_TYPES := ["pixel", "group", "3d", "tilemap", "audio"]
 const MAX_READ_PIXELS := 128 * 128
+# Default preview layout, from Starlite demo/style.css: .wereld, .wereld-vlak and --nav-h.
+const NESTAR_WORLD := Vector2i(112, 216)
+const NESTAR_SCALE := 4
+const NESTAR_PHONE_CHROME := 68 + 64
+const NESTAR_MIN_SCENE_HEIGHT := 480
 ## Characters used to label colors in read_pixels. "." is reserved for transparent.
 const SYMBOLS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=-~^<>?!:;/|"
 
@@ -441,6 +446,86 @@ func _cmd_get_image(params: Dictionary) -> Dictionary:
 	if scale > 1:
 		image.resize(image.get_width() * scale, image.get_height() * scale, Image.INTERPOLATE_NEAREST)
 	return {"png": Marshalls.raw_to_base64(image.save_png_to_buffer()), "frame": frame, "scale": scale}
+
+
+## Compares a day and a night frame the way a phone shows the world: scaled up,
+## centered horizontally and anchored to the bottom. Defaults are Nestar's demo;
+## every value can be overridden for another layout or another project.
+func _cmd_preview_nestar_phone(params: Dictionary) -> Dictionary:
+	var project = api.project.current_project
+	var layout := {
+		"canvas_width": NESTAR_WORLD.x, "canvas_height": NESTAR_WORLD.y, "scale": NESTAR_SCALE,
+		"chrome_height": NESTAR_PHONE_CHROME, "min_scene_height": NESTAR_MIN_SCENE_HEIGHT,
+	}
+	var limits := {
+		"canvas_width": [1, 4096], "canvas_height": [1, 4096], "scale": [1, 16],
+		"chrome_height": [0, 1000], "min_scene_height": [1, 4000],
+	}
+	for key in layout:
+		var value = params.get(key, layout[key])
+		if not _int_in_range(value, limits[key][0], limits[key][1]):
+			return _error("%s must be an integer from %d to %d" % [key, limits[key][0], limits[key][1]])
+		layout[key] = int(value)
+	var world := Vector2i(layout.canvas_width, layout.canvas_height)
+	if Vector2i(project.size) != world:
+		return _error("This preview expects a %d × %d canvas; the project is %d × %d. Pass canvas_width and canvas_height for another size." % [world.x, world.y, project.size.x, project.size.y])
+	var day = params.get("day_frame")
+	var night = params.get("night_frame")
+	for index in [day, night]:
+		if not _int_in_range(index, 0, project.frames.size() - 1):
+			return _error("Select existing day and night frames")
+	var scaled: Vector2i = world * layout.scale
+	var width = params.get("width", mini(390, scaled.x))
+	var height = params.get("height", 844)
+	if not _int_in_range(width, 1, scaled.x) or not _int_in_range(height, 1, 4000):
+		return _error("Use a phone width of 1–%d px (the scaled canvas) and a height of 1–4000 px" % scaled.x)
+	var scene_height := maxi(layout.min_scene_height, int(height) - layout.chrome_height)
+	var visible_height := mini(scaled.y, scene_height)
+	var origin := Vector2i(floori((scaled.x - width) / 2.0), maxi(0, scaled.y - scene_height))
+	# Optional frame (in canvas pixels): everything that matters must be visible.
+	# The crop then centers on the frame instead of keeping the bottom fixed.
+	var frame_keys := ["frame_x", "frame_y", "frame_width", "frame_height"]
+	var frame_given := frame_keys.filter(func(key): return params.has(key))
+	var frame := {}
+	if not frame_given.is_empty():
+		if frame_given.size() != 4:
+			return _error("Pass frame_x, frame_y, frame_width and frame_height together")
+		var area := Rect2i(int(params.get("frame_x", -1)), int(params.get("frame_y", -1)), int(params.get("frame_width", 0)), int(params.get("frame_height", 0)))
+		for key in frame_keys:
+			if not _int_in_range(params[key], 0, 4096):
+				return _error("%s must be a whole number" % key)
+		if not area.has_area() or not Rect2i(Vector2i.ZERO, world).encloses(area):
+			return _error("The frame must lie inside the %d × %d canvas" % [world.x, world.y])
+		var shown := Rect2i(area.position * layout.scale, area.size * layout.scale)
+		if shown.size.x > int(width) or shown.size.y > visible_height:
+			return _error("The frame (%d × %d px on screen) does not fit a phone scene of %d × %d px" % [shown.size.x, shown.size.y, int(width), visible_height])
+		var center := shown.get_center()
+		origin = Vector2i(
+			clampi(center.x - floori(width / 2.0), 0, scaled.x - int(width)),
+			clampi(center.y - floori(visible_height / 2.0), 0, scaled.y - visible_height))
+		frame = {"x": area.position.x, "y": area.position.y, "width": area.size.x, "height": area.size.y}
+	var crop := Rect2i(origin, Vector2i(int(width), visible_height))
+	var preview := Image.create_empty(2 * int(width), scene_height, false, Image.FORMAT_RGBA8)
+	for i in 2:
+		var image := _blend_frame(project, int(day if i == 0 else night))
+		image.convert(Image.FORMAT_RGBA8)
+		image.resize(scaled.x, scaled.y, Image.INTERPOLATE_NEAREST)
+		preview.blit_rect(image, crop, Vector2i(i * int(width), scene_height - crop.size.y))
+	return {
+		"png": Marshalls.raw_to_base64(preview.save_png_to_buffer()),
+		"day_frame": int(day),
+		"night_frame": int(night),
+		"phone": {"width": int(width), "height": int(height)},
+		"per_panel": {"width": int(width), "height": scene_height},
+		"crop": {"x": origin.x, "y": origin.y, "width": crop.size.x, "height": crop.size.y},
+		"pixel_scale": layout.scale,
+		"layout": layout,
+		"frame": frame if not frame.is_empty() else null,
+	}
+
+
+func _int_in_range(value: Variant, minimum: int, maximum: int) -> bool:
+	return (value is int or value is float) and value >= minimum and value <= maximum and int(value) == value
 
 
 func _cmd_add_layer(params: Dictionary) -> Dictionary:
