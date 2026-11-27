@@ -431,6 +431,25 @@ server.registerTool(
   async (args) => json(await pixelorama.request("redo", args)),
 );
 
+server.registerTool(
+  "export_nestar_asset",
+  {
+    description: "Export an exact rectangle of one pixel layer as Nestar {pal, rows}. Optionally save JSON to an allowed path.",
+    inputSchema: {
+      frame, layer,
+      x: z.number().int().min(0).default(0),
+      y: z.number().int().min(0).default(0),
+      width: z.number().int().min(1),
+      height: z.number().int().min(1),
+      allowed_colors: z.array(z.string().regex(/^#[0-9a-f]{6}$/i)).min(1).max(62).optional(),
+      path: z.string().optional().describe("Optional .json output path"),
+    },
+  },
+  async ({ path, ...args }) => json(await pixelorama.request(
+    "export_nestar_asset", path === undefined ? args : { ...args, path: absolute(path) },
+  )),
+);
+
 const shutdown = () => {
   pixelorama.close();
   process.exit(0);

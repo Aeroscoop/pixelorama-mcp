@@ -54,6 +54,7 @@ agent  <-- stdio -->  MCP-server (Node)  <-- TCP 127.0.0.1:7651 -->  uitbreiding
 | `open_file` | `.pxo` of afbeelding openen | volledig pad; opent een nieuw tabblad |
 | `save_project` | bewaren als `.pxo` | alleen na ja |
 | `export_png` | frame(s) als PNG | alleen na ja |
+| `export_nestar_asset` | exporteer één rechthoek uit een pixellaag als `pal` en `rows` | geef maat en positie op. Alleen volledig lege of dekkende pixels. Alleen met ja naar een bestand |
 | `undo` | laatste n stappen ongedaan maken (Ctrl+Z), standaard 1, hoogstens 50 | geeft de namen van de stappen terug; kijk daarna met `get_project`/`get_palette` |
 | `redo` | n stappen opnieuw doen (Ctrl+Y) | idem |
 | `get_palette` | gekozen palet (vakje + kleur), alle paletnamen, kleurmodus | |
